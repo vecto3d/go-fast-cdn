@@ -7,11 +7,16 @@ import useGetFileDataQuery from "./hooks/use-get-file-data-query";
 
 type TFileDataModalProps = {
   filename: string;
+  folder?: string;
   type: "images" | "documents";
 };
 
-const FileDataModal: React.FC<TFileDataModalProps> = ({ filename, type }) => {
-  const fileData = useGetFileDataQuery({ filename, type });
+const FileDataModal: React.FC<TFileDataModalProps> = ({
+  filename,
+  folder = "",
+  type,
+}) => {
+  const fileData = useGetFileDataQuery({ filename, folder, type });
 
   if (!fileData.data)
     return (

@@ -21,12 +21,14 @@ import { Input } from "@/components/ui/input";
 
 type RenameModalProps = {
   filename?: string;
+  folder?: string;
   type: "images" | "documents";
   isSelecting?: boolean;
 };
 
 const RenameModal: React.FC<RenameModalProps> = ({
   filename,
+  folder = "",
   type,
   isSelecting,
 }) => {
@@ -68,6 +70,7 @@ const RenameModal: React.FC<RenameModalProps> = ({
     const form = new FormData();
     form.append("filename", filename);
     form.append("newname", newFilename + "." + fileExt);
+    form.append("folder", folder);
 
     renameFileMutation.mutate(form);
   };

@@ -1,12 +1,14 @@
 package util
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 )
 
-func DeleteFile(deletedFileName string, fileType string) error {
-	filePath := fmt.Sprintf("%v/uploads/%v/%v", ExPath, fileType, deletedFileName)
+// DeleteFile removes a file from the given folder below uploads/<fileType>.
+// An empty folder means the file type's root directory.
+func DeleteFile(folder, deletedFileName string, fileType string) error {
+	filePath := filepath.Join(ExPath, "uploads", fileType, SanitizeFolder(folder), deletedFileName)
 
 	err := os.Remove(filePath)
 	if err != nil {

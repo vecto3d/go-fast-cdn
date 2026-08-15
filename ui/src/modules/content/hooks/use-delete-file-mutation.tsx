@@ -8,8 +8,17 @@ import toast from "react-hot-toast";
 const useDeleteFileMutation = (type: "doc" | "image") => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (filename: string) => {
-      const res = await cdnApiClient.delete(`/delete/${type}/${filename}`);
+    mutationFn: async ({
+      filename,
+      folder = "",
+    }: {
+      filename: string;
+      folder?: string;
+    }) => {
+      const res = await cdnApiClient.delete(
+        `/delete/${type}/${encodeURIComponent(filename)}`,
+        { params: { folder } }
+      );
       return res.data;
     },
     onSuccess: () => {

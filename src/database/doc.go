@@ -38,10 +38,10 @@ func (repo *DocRepo) AddDoc(doc models.Doc) (string, error) {
 	return doc.FileName, result.Error
 }
 
-func (repo *DocRepo) DeleteDoc(fileName string) (string, bool) {
+func (repo *DocRepo) DeleteDoc(folder, fileName string) (string, bool) {
 	var doc models.Doc
 
-	result := repo.DB.Where("file_name = ?", fileName).First(&doc)
+	result := repo.DB.Where("folder = ? AND file_name = ?", folder, fileName).First(&doc)
 
 	if result.Error == nil {
 		repo.DB.Delete(&doc)
@@ -51,7 +51,7 @@ func (repo *DocRepo) DeleteDoc(fileName string) (string, bool) {
 	}
 }
 
-func (repo *DocRepo) RenameDoc(oldFileName, newFileName string) error {
+func (repo *DocRepo) RenameDoc(folder, oldFileName, newFileName string) error {
 	doc := models.Doc{}
-	return repo.DB.Model(&doc).Where("file_name = ?", oldFileName).Update("file_name", newFileName).Error
+	return repo.DB.Model(&doc).Where("folder = ? AND file_name = ?", folder, oldFileName).Update("file_name", newFileName).Error
 }

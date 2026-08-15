@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/md5"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,7 @@ import (
 
 func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
 	newName := c.PostForm("filename")
+	folder := util.SanitizeFolder(c.PostForm("folder"))
 
 	fileHeader, err := c.FormFile("image")
 	if err != nil {
@@ -69,6 +71,7 @@ func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
 
 	image := models.Image{
 		FileName: filteredFilename,
+		Folder:   folder,
 		Checksum: fileHashBuffer[:],
 	}
 
@@ -86,14 +89,20 @@ func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
 		return
 	}
 
-	err = c.SaveUploadedFile(fileHeader, util.ExPath+"/uploads/images/"+savedFilename)
+	destination := filepath.Join(util.ExPath, "uploads", "images", folder)
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to create folder: %s", err.Error())
+		return
+	}
+
+	err = c.SaveUploadedFile(fileHeader, filepath.Join(destination, savedFilename))
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to save file: %s", err.Error())
 		return
 	}
 
 	body := gin.H{
-		"file_url": c.Request.Host + "/api/cdn/download/images/" + savedFilename,
+		"file_url": c.Request.Host + "/api/cdn/download/images/" + util.URLPath(folder, savedFilename),
 	}
 
 	c.JSON(http.StatusOK, body)

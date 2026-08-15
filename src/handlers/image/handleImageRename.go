@@ -11,6 +11,7 @@ import (
 func (h *ImageHandler) HandleImageRename(c *gin.Context) {
 	oldName := c.PostForm("filename")
 	newName := c.PostForm("newname")
+	folder := util.SanitizeFolder(c.PostForm("folder"))
 
 	err := validations.ValidateRenameInput(oldName, newName)
 	if err != nil {
@@ -24,13 +25,13 @@ func (h *ImageHandler) HandleImageRename(c *gin.Context) {
 		return
 	}
 
-	err = util.RenameFile(oldName, filteredNewName, "images")
+	err = util.RenameFile(folder, oldName, filteredNewName, "images")
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to rename file: %s", err.Error())
 		return
 	}
 
-	err = h.repo.RenameImage(oldName, filteredNewName)
+	err = h.repo.RenameImage(folder, oldName, filteredNewName)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to rename file: %s", err.Error())
 		return

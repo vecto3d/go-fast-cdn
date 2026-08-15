@@ -21,7 +21,8 @@ func HandleDocMetadata(c *gin.Context) {
 		return
 	}
 
-	filePath := filepath.Join(util.ExPath, "uploads", "docs", fileName)
+	folder := util.SanitizeFolder(c.Query("folder"))
+	filePath := filepath.Join(util.ExPath, "uploads", "docs", folder, fileName)
 	stat, err := os.Stat(filePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -39,7 +40,8 @@ func HandleDocMetadata(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"filename":     fileName,
-		"download_url": c.Request.Host + "/api/cdn/download/docs/" + fileName,
+		"folder":       folder,
+		"download_url": c.Request.Host + "/api/cdn/download/docs/" + util.URLPath(folder, fileName),
 		"file_size":    stat.Size(),
 	})
 }

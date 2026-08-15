@@ -3,6 +3,7 @@ import { useMutation, UseMutationOptions } from "@tanstack/react-query";
 
 type ResizeImageParams = {
   filename: string;
+  folder?: string;
   width: number;
   height: number;
 };

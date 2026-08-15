@@ -22,7 +22,8 @@ func HandleImageMetadata(c *gin.Context) {
 		return
 	}
 
-	filePath := filepath.Join(util.ExPath, "uploads", "images", fileName)
+	folder := util.SanitizeFolder(c.Query("folder"))
+	filePath := filepath.Join(util.ExPath, "uploads", "images", folder, fileName)
 
 	if fileinfo, err := os.Stat(filePath); err == nil {
 		if file, err := os.Open(filePath); err != nil {
@@ -47,7 +48,8 @@ func HandleImageMetadata(c *gin.Context) {
 
 			body := gin.H{
 				"filename":     fileName,
-				"download_url": c.Request.Host + "/api/cdn/download/images/" + fileName,
+				"folder":       folder,
+				"download_url": c.Request.Host + "/api/cdn/download/images/" + util.URLPath(folder, fileName),
 				"file_size":    fileinfo.Size(),
 				"width":        width,
 				"height":       height,

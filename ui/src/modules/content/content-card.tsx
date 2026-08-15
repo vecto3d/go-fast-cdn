@@ -10,9 +10,11 @@ import { TooltipTrigger } from "@radix-ui/react-tooltip";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { encodeFilePath } from "@/utils";
 
 const ContentCard: React.FC<TContentCardProps> = ({
   file_name,
+  folder = "",
   type = "documents",
   disabled = false,
   isSelected,
@@ -20,14 +22,16 @@ const ContentCard: React.FC<TContentCardProps> = ({
   isSelecting,
 }) => {
   const url = `${window.location.protocol}//${window.location.host
-    }/api/cdn/download/${type === "documents" ? "docs" : "images"}/${file_name}`;
+    }/api/cdn/download/${
+      type === "documents" ? "docs" : "images"
+    }/${encodeFilePath(folder, file_name)}`;
 
   const deleteFile = useDeleteFileMutation(
     type === "documents" ? "doc" : "image"
   );
 
   const handleDeleteFile = () => {
-    deleteFile.mutate(file_name);
+    deleteFile.mutate({ filename: file_name, folder });
   };
 
   return (
@@ -55,7 +59,7 @@ const ContentCard: React.FC<TContentCardProps> = ({
             <FileText size="128" />
           )}
         </DialogTrigger>
-        <FileDataModal filename={file_name} type={type} />
+        <FileDataModal filename={file_name} folder={folder} type={type} />
       </Dialog>
       <div className="w-full flex flex-col gap-2">
         <p className="truncate">{file_name}</p>
@@ -115,11 +119,13 @@ const ContentCard: React.FC<TContentCardProps> = ({
             <RenameModal
               type={type}
               filename={file_name}
+              folder={folder}
               isSelecting={isSelecting}
             />
             {type === "images" && (
               <ResizeModal
                 filename={file_name ?? ""}
+                folder={folder}
                 isSelecting={isSelecting}
               />
             )}

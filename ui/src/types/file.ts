@@ -4,5 +4,6 @@ export type TFile = {
   UpdatedAt: string;
   DeletedAt: string | null;
   file_name: string;
+  folder: string;
   checksum: string;
 };

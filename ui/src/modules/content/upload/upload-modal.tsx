@@ -1,7 +1,7 @@
 import { Loader2Icon, Plus } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { sanitizeFileName } from "@/utils";
+import { sanitizeFileName, sanitizeFolder } from "@/utils";
 import UploadForm from "./upload-form";
 import {
   Dialog,
@@ -14,6 +14,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SidebarGroupAction } from "@/components/ui/sidebar";
 import useUploadFileMutation from "../hooks/use-upload-file-mutation";
 import { AxiosError } from "axios";
@@ -21,16 +23,19 @@ import { IErrorResponse } from "@/types/response";
 import toast from "react-hot-toast";
 import { constant } from "@/lib/constant";
 
-type ConditionalUploadModalProps =
+type ConditionalUploadModalProps = { folder?: string } & (
   | { placement: "header"; type: "documents" | "images" }
-  | { placement?: "sidebar"; type?: "documents" | "images" };
+  | { placement?: "sidebar"; type?: "documents" | "images" }
+);
 
 const UploadModal = ({
   placement = "sidebar",
   type,
+  folder: currentFolder = "",
 }: ConditionalUploadModalProps) => {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [folder, setFolder] = useState(currentFolder);
 
   // Set initial tab based on type when placement is header, otherwise default to documents
   const [tab, setTab] = useState<"documents" | "images">(
@@ -41,13 +46,14 @@ const UploadModal = ({
 
   const handleReset = useCallback(() => {
     setFiles([]);
+    setFolder(currentFolder);
 
     // Reset tab to initial value based on placement and type
     const initialTab = placement === "header" && type ? type : "documents";
     setTab(initialTab);
     setOpen(false);
     uploadFileMutation.reset();
-  }, [uploadFileMutation, placement, type]);
+  }, [uploadFileMutation, placement, type, currentFolder]);
 
   const queryClient = useQueryClient();
 
@@ -59,6 +65,7 @@ const UploadModal = ({
           return uploadFileMutation.mutateAsync({
             file: sanitizedFile,
             type: tab === "documents" ? "doc" : "image",
+            folder: sanitizeFolder(folder),
           });
         })
       );
@@ -108,6 +115,17 @@ const UploadModal = ({
             Upload your files here and manage your content easily.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="grid gap-2">
+          <Label htmlFor="upload-folder">Folder</Label>
+          <Input
+            id="upload-folder"
+            value={folder}
+            onChange={(e) => setFolder(e.target.value)}
+            placeholder="Root — or e.g. logos/dark"
+            disabled={isUploadPending}
+          />
+        </div>
 
         <UploadForm
           isLoading={isUploadPending}

@@ -16,7 +16,9 @@ func (h *ImageHandler) HandleImageDelete(c *gin.Context) {
 		return
 	}
 
-	deletedFileName, success := h.repo.DeleteImage(fileName)
+	folder := util.SanitizeFolder(c.Query("folder"))
+
+	deletedFileName, success := h.repo.DeleteImage(folder, fileName)
 	if !success {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Image not found",
@@ -24,7 +26,7 @@ func (h *ImageHandler) HandleImageDelete(c *gin.Context) {
 		return
 	}
 
-	err := util.DeleteFile(deletedFileName, "images")
+	err := util.DeleteFile(folder, deletedFileName, "images")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to delete image",

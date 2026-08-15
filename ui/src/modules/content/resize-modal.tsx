@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Scaling } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import useResizeModalQuery from "./hooks/use-resize-modal-query";
+import useGetFileDataQuery from "./hooks/use-get-file-data-query";
 import useResizeImageMutation from "./hooks/use-resize-image-mutation";
 import { constant } from "@/lib/constant";
 import {
@@ -26,17 +26,22 @@ import { Input } from "@/components/ui/input";
 
 type ResizeModalProps = {
   filename: string;
+  folder?: string;
   isSelecting?: boolean;
 };
 
-const ResizeModal: React.FC<ResizeModalProps> = ({ filename, isSelecting }) => {
+const ResizeModal: React.FC<ResizeModalProps> = ({
+  filename,
+  folder = "",
+  isSelecting,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [resizeFormData, setResizeFormData] = useState<ImageDimensions>({
     width: 0,
     height: 0,
   });
   const queryClient = useQueryClient();
-  const resizeModal = useResizeModalQuery(filename);
+  const resizeModal = useGetFileDataQuery({ filename, folder, type: "images" });
   const fileMetadata = resizeModal.data;
 
   const resizeFileMutation = useResizeImageMutation({
@@ -82,6 +87,7 @@ const ResizeModal: React.FC<ResizeModalProps> = ({ filename, isSelecting }) => {
 
     const data = {
       filename,
+      folder,
       width: Math.abs(Math.floor(width)),
       height: Math.abs(Math.floor(height)),
     };

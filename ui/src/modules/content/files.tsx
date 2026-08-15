@@ -3,7 +3,7 @@ import useGetFilesQuery from "./hooks/use-get-files-query";
 import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { List, Trash, X } from "lucide-react";
+import { ChevronRight, Folder, Home, List, Trash, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import MainContentWrapper from "@/components/layouts/main-content-wrapper";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +34,7 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
   const files = useGetFilesQuery({ type });
   const [search, setSearch] = useState("");
   const [debounceSearch, setDebounceSearch] = useState("");
+  const [folder, setFolder] = useState("");
 
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -50,7 +51,9 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
   } = useMutation({
     mutationFn: () =>
       Promise.all(
-        selectedFiles.map((fileName) => deleteMutation.mutateAsync(fileName))
+        selectedFiles.map((fileName) =>
+          deleteMutation.mutateAsync({ filename: fileName, folder })
+        )
       ),
     onSuccess: () => {
       setSelectedFiles([]);
@@ -66,11 +69,40 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
     },
   });
 
-  const filteredFiles = useMemo(() => {
-    return files.data?.filter((file) =>
-      file.file_name.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [files.data, search]);
+  // Folders exist only where files do, so both the contents of the current
+  // folder and the list of its subfolders are derived from the file list.
+  const { filteredFiles, subFolders } = useMemo(() => {
+    const prefix = folder ? `${folder}/` : "";
+    const inFolder: typeof files.data = [];
+    const names = new Set<string>();
+
+    for (const file of files.data ?? []) {
+      const fileFolder = file.folder ?? "";
+      if (fileFolder === folder) {
+        inFolder.push(file);
+      } else if (fileFolder.startsWith(prefix)) {
+        names.add(fileFolder.slice(prefix.length).split("/")[0]);
+      }
+    }
+
+    return {
+      filteredFiles: inFolder.filter((file) =>
+        file.file_name.toLowerCase().includes(search.toLowerCase())
+      ),
+      subFolders: [...names].sort(),
+    };
+  }, [files.data, folder, search]);
+
+  const breadcrumbs = useMemo(
+    () => (folder ? folder.split("/") : []),
+    [folder]
+  );
+
+  const handleOpenFolder = useCallback((path: string) => {
+    setFolder(path);
+    setSelectedFiles([]);
+    setIsSelecting(false);
+  }, []);
 
   const handleSearchChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,12 +218,53 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
                   <List />
                   Select
                 </Button>
-                <UploadModal placement="header" type={type} />
+                <UploadModal placement="header" type={type} folder={folder} />
               </>
             )}
           </section>
         </div>
+        <nav aria-label="Folder breadcrumb" className="flex items-center gap-1 text-sm">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-2"
+            onClick={() => handleOpenFolder("")}
+            disabled={!folder}
+          >
+            <Home />
+            {type}
+          </Button>
+          {breadcrumbs.map((segment, index) => (
+            <span key={segment + index} className="flex items-center gap-1">
+              <ChevronRight className="text-muted-foreground" size={14} />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="px-2"
+                onClick={() =>
+                  handleOpenFolder(breadcrumbs.slice(0, index + 1).join("/"))
+                }
+                disabled={index === breadcrumbs.length - 1}
+              >
+                {segment}
+              </Button>
+            </span>
+          ))}
+        </nav>
         <div className="flex flex-wrap gap-4">
+          {subFolders.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() =>
+                handleOpenFolder(folder ? `${folder}/${name}` : name)
+              }
+              className="border rounded-lg shadow-lg flex flex-col w-64 max-w-[256px] items-center justify-center gap-2 p-4 hover:bg-accent transition-colors"
+            >
+              <Folder size="64" />
+              <span className="truncate w-full text-center">{name}</span>
+            </button>
+          ))}
           {files.isLoading ? (
             <>
               <Skeleton className="min-h-[264px] w-64 max-w-[256px]" />
@@ -207,6 +280,7 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
                 <ContentCard
                   type={type}
                   file_name={file.file_name}
+                  folder={file.folder}
                   ID={file.ID}
                   createdAt={file.CreatedAt}
                   updatedAt={file.UpdatedAt}

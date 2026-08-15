@@ -1,5 +1,6 @@
 export type TContentCardProps = {
   file_name: string;
+  folder?: string;
   type?: "images" | "documents";
   ID?: number;
   createdAt: string;

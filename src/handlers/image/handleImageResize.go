@@ -20,6 +20,7 @@ import (
 func HandleImageResize(c *gin.Context) {
 	body := struct {
 		Filename string `json:"filename" binding:"required"`
+		Folder   string `json:"folder"`
 		Width    int    `json:"width" binding:"required"`
 		Height   int    `json:"height" binding:"required"`
 	}{}
@@ -40,7 +41,7 @@ func HandleImageResize(c *gin.Context) {
 	}
 	imgType := strings.Split(filename, ".")[1]
 
-	filePath := filepath.Join(util.ExPath, "uploads", "images", filename)
+	filePath := filepath.Join(util.ExPath, "uploads", "images", util.SanitizeFolder(body.Folder), filename)
 
 	// Open and decode image (supports webp via golang.org/x/image/webp)
 	file, err := os.Open(filePath)

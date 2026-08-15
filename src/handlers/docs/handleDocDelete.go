@@ -16,7 +16,9 @@ func (h *DocHandler) HandleDocDelete(c *gin.Context) {
 		return
 	}
 
-	deletedFileName, success := h.repo.DeleteDoc(fileName)
+	folder := util.SanitizeFolder(c.Query("folder"))
+
+	deletedFileName, success := h.repo.DeleteDoc(folder, fileName)
 	if !success {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Document not found",
@@ -24,7 +26,7 @@ func (h *DocHandler) HandleDocDelete(c *gin.Context) {
 		return
 	}
 
-	err := util.DeleteFile(deletedFileName, "docs")
+	err := util.DeleteFile(folder, deletedFileName, "docs")
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Failed to delete document",

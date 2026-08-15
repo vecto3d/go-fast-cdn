@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/md5"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +14,7 @@ import (
 func (h *DocHandler) HandleDocUpload(c *gin.Context) {
 	fileHeader, err := c.FormFile("doc")
 	newName := c.PostForm("filename")
+	folder := util.SanitizeFolder(c.PostForm("folder"))
 
 	if err != nil {
 		c.String(http.StatusBadRequest, "Failed to read file: %s", err.Error())
@@ -68,6 +70,7 @@ func (h *DocHandler) HandleDocUpload(c *gin.Context) {
 
 	doc := models.Doc{
 		FileName: filteredFilename,
+		Folder:   folder,
 		Checksum: fileHashBuffer[:],
 	}
 
@@ -83,14 +86,20 @@ func (h *DocHandler) HandleDocUpload(c *gin.Context) {
 		return
 	}
 
-	err = c.SaveUploadedFile(fileHeader, util.ExPath+"/uploads/docs/"+savedFileName)
+	destination := filepath.Join(util.ExPath, "uploads", "docs", folder)
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to create folder: %s", err.Error())
+		return
+	}
+
+	err = c.SaveUploadedFile(fileHeader, filepath.Join(destination, savedFileName))
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to save file: %s", err.Error())
 		return
 	}
 
 	body := gin.H{
-		"file_url": c.Request.Host + "/download/docs/" + savedFileName,
+		"file_url": c.Request.Host + "/api/cdn/download/docs/" + util.URLPath(folder, savedFileName),
 	}
 
 	c.JSON(http.StatusOK, body)
