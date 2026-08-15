@@ -2,6 +2,7 @@ import { Loader2Icon, Plus } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { sanitizeFileName, sanitizeFolder } from "@/utils";
+import { FILE_TYPES, TFileType } from "@/lib/file-types";
 import UploadForm from "./upload-form";
 import {
   Dialog,
@@ -24,8 +25,8 @@ import toast from "react-hot-toast";
 import { constant } from "@/lib/constant";
 
 type ConditionalUploadModalProps = { folder?: string } & (
-  | { placement: "header"; type: "documents" | "images" }
-  | { placement?: "sidebar"; type?: "documents" | "images" }
+  | { placement: "header"; type: TFileType }
+  | { placement?: "sidebar"; type?: TFileType }
 );
 
 const UploadModal = ({
@@ -38,7 +39,7 @@ const UploadModal = ({
   const [folder, setFolder] = useState(currentFolder);
 
   // Set initial tab based on type when placement is header, otherwise default to documents
-  const [tab, setTab] = useState<"documents" | "images">(
+  const [tab, setTab] = useState<TFileType>(
     placement === "header" && type ? type : "documents"
   );
 
@@ -64,7 +65,7 @@ const UploadModal = ({
           const sanitizedFile = sanitizeFileName(file);
           return uploadFileMutation.mutateAsync({
             file: sanitizedFile,
-            type: tab === "documents" ? "doc" : "image",
+            type: tab,
             folder: sanitizeFolder(folder),
           });
         })
@@ -100,7 +101,7 @@ const UploadModal = ({
         {placement === "header" ? (
           <Button onClick={() => {}} variant="default">
             <Plus />
-            Add {type === "images" ? "Image" : "Document"}
+            Add {type ? FILE_TYPES[type].label : "Content"}
           </Button>
         ) : (
           <SidebarGroupAction title="Add Content">

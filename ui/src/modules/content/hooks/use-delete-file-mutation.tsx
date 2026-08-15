@@ -1,11 +1,12 @@
 import { constant } from "@/lib/constant";
+import { apiSegment, TFileType } from "@/lib/file-types";
 import { cdnApiClient } from "@/services/authService";
 import { IErrorResponse } from "@/types/response";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import toast from "react-hot-toast";
 
-const useDeleteFileMutation = (type: "doc" | "image") => {
+const useDeleteFileMutation = (type: TFileType) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -16,7 +17,7 @@ const useDeleteFileMutation = (type: "doc" | "image") => {
       folder?: string;
     }) => {
       const res = await cdnApiClient.delete(
-        `/delete/${type}/${encodeURIComponent(filename)}`,
+        `/delete/${apiSegment(type)}/${encodeURIComponent(filename)}`,
         { params: { folder } }
       );
       return res.data;
@@ -28,9 +29,7 @@ const useDeleteFileMutation = (type: "doc" | "image") => {
         queryKey: constant.queryKeys.size(),
       });
       queryClient.invalidateQueries({
-        queryKey: constant.queryKeys.images(
-          type === "image" ? "images" : "documents"
-        ),
+        queryKey: constant.queryKeys.images(type),
       });
     },
     onError: (error) => {

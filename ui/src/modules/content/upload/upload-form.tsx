@@ -6,13 +6,19 @@ import FileInput from "./file-input";
 import toast from "react-hot-toast";
 import DocCardUpload from "./doc-card-upload";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  acceptedTypes,
+  FILE_TYPE_NAMES,
+  FILE_TYPES,
+  TFileType,
+} from "@/lib/file-types";
 
 interface UploadProps {
   files: File[];
   onChangeFiles: (files: File[]) => void;
   isLoading: boolean;
-  tab: "documents" | "images";
-  onChangeTab: (tab: "documents" | "images") => void;
+  tab: TFileType;
+  onChangeTab: (tab: TFileType) => void;
   disableTabSwitching?: boolean;
 }
 
@@ -68,36 +74,11 @@ const UploadForm = ({
       const droppedFiles = Array.from(e.dataTransfer.files);
 
       // check if the dropped files match the current tab
-      const acceptedTypes =
-        tab === "documents"
-          ? [
-              "text/plain",
-              "application/zip",
-              "application/msword",
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-              "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-              "application/pdf",
-              "application/rtf",
-              "application/x-freearc",
-            ]
-          : [
-              "image/jpeg",
-              "image/png",
-              "image/jpg",
-              "image/webp",
-              "image/gif",
-              "image/bmp",
-            ];
       const isValidFiles = droppedFiles.every((file) =>
-        acceptedTypes.includes(file.type)
+        acceptedTypes(tab).includes(file.type)
       );
       if (!isValidFiles) {
-        toast.error(
-          `Invalid file type. Please upload ${
-            tab === "documents" ? "documents" : "images"
-          } only.`
-        );
+        toast.error(`Invalid file type. Please upload ${tab} only.`);
         return;
       }
       if (droppedFiles.length === 0) return;
@@ -131,27 +112,21 @@ const UploadForm = ({
     >
       {files.length > 0 ? (
         <div className="flex gap-2 flex-wrap p-2 overflow-y-auto max-h-80">
-          {tab === "documents" ? (
-            <>
-              {files.map((file, index) => (
-                <DocCardUpload
-                  key={file.name + index}
-                  fileName={sanitizeFileName(file).name}
-                  onClickDelete={() => handleDeleteFile(index)}
-                />
-              ))}
-            </>
-          ) : (
-            <>
-              {files.map((file, index) => (
-                <ImageCardUpload
-                  key={file.name + index}
-                  fileName={sanitizeFileName(file).name}
-                  onClickDelete={() => handleDeleteFile(index)}
-                  imageUrl={URL.createObjectURL(file)}
-                />
-              ))}
-            </>
+          {files.map((file, index) =>
+            tab === "images" ? (
+              <ImageCardUpload
+                key={file.name + index}
+                fileName={sanitizeFileName(file).name}
+                onClickDelete={() => handleDeleteFile(index)}
+                imageUrl={URL.createObjectURL(file)}
+              />
+            ) : (
+              <DocCardUpload
+                key={file.name + index}
+                fileName={sanitizeFileName(file).name}
+                onClickDelete={() => handleDeleteFile(index)}
+              />
+            )
           )}
         </div>
       ) : (
@@ -168,17 +143,11 @@ const UploadForm = ({
               ) : (
                 <div className="text-center">
                   <p className="text-muted-foreground text-center">
-                    {tab === "documents"
-                      ? "Drop your documents here, or click to select files."
-                      : "Drop your images here, or click to select files."}
+                    {FILE_TYPES[tab].dropMessage}
                   </p>
                   <input
                     type="file"
-                    accept={
-                      tab === "documents"
-                        ? "text/plain,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/pdf,application/rtf,application/x-freearc"
-                        : "image/jpeg,image/png,image/jpg,image/webp,image/gif,image/bmp"
-                    }
+                    accept={FILE_TYPES[tab].accept}
                     multiple
                     name={tab}
                     id={tab}
@@ -194,7 +163,7 @@ const UploadForm = ({
             // When tab switching is enabled, show tabs with content
             <Tabs
               onValueChange={(value) => {
-                onChangeTab(value as "documents" | "images");
+                onChangeTab(value as TFileType);
               }}
               value={tab}
             >
@@ -202,8 +171,11 @@ const UploadForm = ({
                 className="self-center mb-4"
                 onClick={(e) => e.stopPropagation()}
               >
-                <TabsTrigger value="documents">Documents</TabsTrigger>
-                <TabsTrigger value="images">Images</TabsTrigger>
+                {FILE_TYPE_NAMES.map((name) => (
+                  <TabsTrigger key={name} value={name}>
+                    {FILE_TYPES[name].label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
               {isDragOver ? (
@@ -214,16 +186,14 @@ const UploadForm = ({
                 </div>
               ) : (
                 <>
-                  <FileInput
-                    type="documents"
-                    fileRef={fileRef}
-                    onFileChange={handleOnChangeFiles}
-                  />
-                  <FileInput
-                    type="images"
-                    fileRef={fileRef}
-                    onFileChange={handleOnChangeFiles}
-                  />
+                  {FILE_TYPE_NAMES.map((name) => (
+                    <FileInput
+                      key={name}
+                      type={name}
+                      fileRef={fileRef}
+                      onFileChange={handleOnChangeFiles}
+                    />
+                  ))}
                 </>
               )}
             </Tabs>

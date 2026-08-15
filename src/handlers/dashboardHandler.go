@@ -13,16 +13,18 @@ import (
 )
 
 type DashboardHandler struct {
-	DocRepo    models.DocRepository
-	ImageRepo  models.ImageRepository
+	DocRepo    models.FileRepository
+	ImageRepo  models.FileRepository
+	AudioRepo  models.FileRepository
 	UserRepo   models.UserRepository
 	ConfigRepo *database.ConfigRepo
 }
 
-func NewDashboardHandler(docRepo models.DocRepository, imageRepo models.ImageRepository, userRepo models.UserRepository, configRepo *database.ConfigRepo) *DashboardHandler {
+func NewDashboardHandler(docRepo, imageRepo, audioRepo models.FileRepository, userRepo models.UserRepository, configRepo *database.ConfigRepo) *DashboardHandler {
 	return &DashboardHandler{
 		DocRepo:    docRepo,
 		ImageRepo:  imageRepo,
+		AudioRepo:  audioRepo,
 		UserRepo:   userRepo,
 		ConfigRepo: configRepo,
 	}
@@ -39,21 +41,22 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 			return nil
 		})
 
-	docs := h.DocRepo.GetAllDocs()
-	images := h.ImageRepo.GetAllImages()
+	docs := h.DocRepo.GetAll()
+	images := h.ImageRepo.GetAll()
+	audio := h.AudioRepo.GetAll()
 
-	sort.Slice(docs, func(i, j int) bool {
-		return docs[i].CreatedAt.After(docs[j].CreatedAt)
-	})
-	sort.Slice(images, func(i, j int) bool {
-		return images[i].CreatedAt.After(images[j].CreatedAt)
-	})
 	recentUploads := []gin.H{}
-	for _, d := range docs[:min(5, len(docs))] {
-		recentUploads = append(recentUploads, gin.H{"filename": d.FileName, "type": "doc", "uploaded_at": d.CreatedAt})
-	}
-	for _, img := range images[:min(5, len(images))] {
-		recentUploads = append(recentUploads, gin.H{"filename": img.FileName, "type": "image", "uploaded_at": img.CreatedAt})
+	for kind, files := range map[string][]models.FileRecord{
+		"doc":   docs,
+		"image": images,
+		"audio": audio,
+	} {
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].CreatedAt.After(files[j].CreatedAt)
+		})
+		for _, f := range files[:min(5, len(files))] {
+			recentUploads = append(recentUploads, gin.H{"filename": f.FileName, "type": kind, "uploaded_at": f.CreatedAt})
+		}
 	}
 
 	users, _ := h.UserRepo.GetAllUsers()
@@ -91,6 +94,7 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 			"total_size_bytes": cdnSize,
 			"documents_count":  len(docs),
 			"images_count":     len(images),
+			"audio_count":      len(audio),
 			"recent_uploads":   recentUploads,
 		},
 		"users": gin.H{

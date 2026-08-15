@@ -1,5 +1,5 @@
 import { TContentCardProps } from "@/types/contentCard";
-import { DownloadCloud, FileText, Files, Trash2 } from "lucide-react";
+import { DownloadCloud, FileText, Files, Music, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import FileDataModal from "./file-data-modal";
 import RenameModal from "./rename-modal";
@@ -11,6 +11,7 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { encodeFilePath } from "@/utils";
+import { apiSegment } from "@/lib/file-types";
 
 const ContentCard: React.FC<TContentCardProps> = ({
   file_name,
@@ -21,14 +22,11 @@ const ContentCard: React.FC<TContentCardProps> = ({
   onSelect,
   isSelecting,
 }) => {
-  const url = `${window.location.protocol}//${window.location.host
-    }/api/cdn/download/${
-      type === "documents" ? "docs" : "images"
-    }/${encodeFilePath(folder, file_name)}`;
+  const url = `${window.location.protocol}//${
+    window.location.host
+  }/api/cdn/download/${apiSegment(type)}/${encodeFilePath(folder, file_name)}`;
 
-  const deleteFile = useDeleteFileMutation(
-    type === "documents" ? "doc" : "image"
-  );
+  const deleteFile = useDeleteFileMutation(type);
 
   const handleDeleteFile = () => {
     deleteFile.mutate({ filename: file_name, folder });
@@ -45,9 +43,19 @@ const ContentCard: React.FC<TContentCardProps> = ({
           aria-label="Select file"
         />
       )}
+      {type === "audio" && (
+        // Sits outside the dialog trigger so its controls stay clickable.
+        <audio
+          controls
+          preload="none"
+          src={url}
+          className="w-full"
+          aria-label={`Play ${file_name}`}
+        />
+      )}
       <Dialog>
         <DialogTrigger disabled={isSelecting}>
-          {type === "images" ? (
+          {type === "images" && (
             <img
               src={url}
               alt={file_name}
@@ -55,9 +63,9 @@ const ContentCard: React.FC<TContentCardProps> = ({
               height={150}
               className="object-cover max-h-[150px] max-w-[224px]"
             />
-          ) : (
-            <FileText size="128" />
           )}
+          {type === "documents" && <FileText size="128" />}
+          {type === "audio" && <Music size="96" />}
         </DialogTrigger>
         <FileDataModal filename={file_name} folder={folder} type={type} />
       </Dialog>

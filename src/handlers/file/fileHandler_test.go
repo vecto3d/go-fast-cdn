@@ -1,0 +1,260 @@
+package handlers
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/kevinanielsen/go-fast-cdn/src/database"
+	"github.com/kevinanielsen/go-fast-cdn/src/initializers"
+	"github.com/kevinanielsen/go-fast-cdn/src/util"
+	"github.com/stretchr/testify/require"
+)
+
+// newTestHandler points the app at a scratch directory with its own database,
+// so each test gets an empty CDN.
+func newTestHandler(t *testing.T) *FileHandler {
+	t.Helper()
+
+	util.ExPath = t.TempDir()
+	initializers.CreateFolders()
+	database.ConnectToDB()
+	t.Cleanup(func() {
+		// The sqlite file has to be closed before the temp directory can be
+		// removed, which matters on Windows where an open file cannot be
+		// deleted.
+		if sqlDB, err := database.DB.DB(); err == nil {
+			sqlDB.Close()
+		}
+		os.Remove(fmt.Sprintf("%s/%s/%s", util.ExPath, database.DbFolder, database.DbName))
+	})
+
+	return NewFileHandler()
+}
+
+// uploadRequest builds a multipart upload for the given type, with the file
+// arriving in the named form field.
+func uploadRequest(t *testing.T, fileType, formField, fileName, folder string, content []byte) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(formField, fileName)
+	require.NoError(t, err)
+	_, err = part.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteField("folder", folder))
+	require.NoError(t, writer.Close())
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/cdn/upload/"+fileType, body)
+	c.Request.Header.Add("Content-Type", writer.FormDataContentType())
+	c.Params = gin.Params{{Key: "type", Value: fileType}}
+
+	return c, w
+}
+
+func TestHandleUpload(t *testing.T) {
+	jpegBytes := encodeJPEG(t, 64, 48)
+	textBytes := bytes.Repeat([]byte("plain text file. "), 40)
+
+	tests := []struct {
+		name       string
+		fileType   string
+		formField  string
+		fileName   string
+		folder     string
+		content    []byte
+		wantStatus int
+	}{
+		{"image at root", "images", "image", "photo.jpg", "", jpegBytes, http.StatusOK},
+		{"image in folder", "images", "image", "photo.jpg", "holiday/2026", jpegBytes, http.StatusOK},
+		{"doc", "docs", "doc", "notes.txt", "reports", textBytes, http.StatusOK},
+		{"audio", "audio", "audio", "song.flac", "tracks", append([]byte("fLaC"), bytes.Repeat([]byte{7}, 600)...), http.StatusOK},
+		{"unknown type", "videos", "video", "clip.mp4", "", jpegBytes, http.StatusBadRequest},
+		{"wrong content for type", "audio", "audio", "photo.jpg", "", jpegBytes, http.StatusBadRequest},
+		{"missing form field", "images", "wrongfield", "photo.jpg", "", jpegBytes, http.StatusBadRequest},
+		{"filename with two periods", "images", "image", "photo.small.jpg", "", jpegBytes, http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newTestHandler(t)
+
+			c, w := uploadRequest(t, tt.fileType, tt.formField, tt.fileName, tt.folder, tt.content)
+
+			handler.HandleUpload(c)
+
+			require.Equal(t, tt.wantStatus, w.Result().StatusCode, w.Body.String())
+
+			if tt.wantStatus == http.StatusOK {
+				// The file landed in its folder, and the row knows where.
+				require.FileExists(t, filepath.Join(util.ExPath, "uploads", tt.fileType, tt.folder, tt.fileName))
+
+				files := handler.Repo(tt.fileType).GetAll()
+				require.Len(t, files, 1)
+				require.Equal(t, tt.folder, files[0].Folder)
+			}
+		})
+	}
+}
+
+func TestHandleUploadRejectsDuplicate(t *testing.T) {
+	handler := newTestHandler(t)
+	content := encodeJPEG(t, 64, 48)
+
+	c, first := uploadRequest(t, "images", "image", "photo.jpg", "", content)
+	handler.HandleUpload(c)
+	require.Equal(t, http.StatusOK, first.Result().StatusCode)
+
+	cc, second := uploadRequest(t, "images", "image", "photo.jpg", "", content)
+	handler.HandleUpload(cc)
+
+	require.Equal(t, http.StatusConflict, second.Result().StatusCode)
+	require.JSONEq(t, `{"error":"File already exists"}`, second.Body.String())
+}
+
+func TestHandleMetadata(t *testing.T) {
+	handler := newTestHandler(t)
+
+	dir := filepath.Join(util.ExPath, "uploads", "images", "holiday")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "my photo.jpg"), encodeJPEG(t, 32, 16), 0o644))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/cdn/images/my%20photo.jpg?folder=holiday", nil)
+	c.Params = gin.Params{{Key: "type", Value: "images"}, {Key: "filename", Value: "my photo.jpg"}}
+
+	handler.HandleMetadata(c)
+
+	require.Equal(t, http.StatusOK, w.Result().StatusCode, w.Body.String())
+
+	result := map[string]any{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&result))
+	require.Equal(t, "my photo.jpg", result["filename"])
+	require.Equal(t, "holiday", result["folder"])
+	require.Equal(t, float64(32), result["width"])
+	require.Equal(t, float64(16), result["height"])
+	// The space has to be escaped or the URL does not resolve.
+	require.Contains(t, result["download_url"], "holiday/my%20photo.jpg")
+}
+
+func TestHandleMetadataMissingFile(t *testing.T) {
+	handler := newTestHandler(t)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/cdn/images/nope.jpg", nil)
+	c.Params = gin.Params{{Key: "type", Value: "images"}, {Key: "filename", Value: "nope.jpg"}}
+
+	handler.HandleMetadata(c)
+
+	require.Equal(t, http.StatusNotFound, w.Result().StatusCode)
+}
+
+func TestFolderLifecycle(t *testing.T) {
+	handler := newTestHandler(t)
+
+	create := func(folder string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		payload, _ := json.Marshal(map[string]string{"folder": folder})
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/cdn/folder/images", bytes.NewReader(payload))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{{Key: "type", Value: "images"}}
+		handler.HandleFolderCreate(c)
+		return w
+	}
+
+	require.Equal(t, http.StatusOK, create("logos/dark").Result().StatusCode)
+	// Creating the same folder twice is a conflict, not a silent success.
+	require.Equal(t, http.StatusConflict, create("logos/dark").Result().StatusCode)
+	// A traversal attempt is stripped, never applied.
+	require.Equal(t, http.StatusOK, create("../../escaped").Result().StatusCode)
+	require.NoDirExists(t, filepath.Join(util.ExPath, "..", "..", "escaped"))
+	require.DirExists(t, filepath.Join(util.ExPath, "uploads", "images", "escaped"))
+
+	// An empty folder survives, which is the point of creating one up front.
+	listed := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(listed)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/cdn/folder/images", nil)
+	c.Params = gin.Params{{Key: "type", Value: "images"}}
+	handler.HandleFolderList(c)
+
+	folders := []string{}
+	require.NoError(t, json.NewDecoder(listed.Body).Decode(&folders))
+	require.Equal(t, []string{"escaped", "logos", "logos/dark"}, folders)
+}
+
+func TestHandleFolderDeleteIsRecursive(t *testing.T) {
+	handler := newTestHandler(t)
+
+	// A file nested two levels down, both on disk and in the database.
+	c, upload := uploadRequest(t, "images", "image", "photo.jpg", "logos/dark", encodeJPEG(t, 8, 8))
+	handler.HandleUpload(c)
+	require.Equal(t, http.StatusOK, upload.Result().StatusCode)
+
+	w := httptest.NewRecorder()
+	cc, _ := gin.CreateTestContext(w)
+	cc.Request = httptest.NewRequest(http.MethodDelete, "/api/cdn/folder/images?folder=logos", nil)
+	cc.Params = gin.Params{{Key: "type", Value: "images"}}
+
+	handler.HandleFolderDelete(cc)
+
+	require.Equal(t, http.StatusOK, w.Result().StatusCode, w.Body.String())
+
+	result := map[string]any{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&result))
+	require.Equal(t, float64(1), result["files_deleted"])
+	require.NoDirExists(t, filepath.Join(util.ExPath, "uploads", "images", "logos"))
+	require.Empty(t, handler.Repo("images").GetAll())
+}
+
+func TestHandleFolderDeleteRefusesRoot(t *testing.T) {
+	handler := newTestHandler(t)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodDelete, "/api/cdn/folder/images?folder=", nil)
+	c.Params = gin.Params{{Key: "type", Value: "images"}}
+
+	handler.HandleFolderDelete(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+	require.DirExists(t, filepath.Join(util.ExPath, "uploads"))
+}
+
+// Helper functions
+
+func encodeJPEG(t *testing.T, width, height int) []byte {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, color.RGBA{uint8(x), uint8(y), 0, 255})
+		}
+	}
+
+	buffer := &bytes.Buffer{}
+	require.NoError(t, encodeImage(buffer, img))
+
+	return buffer.Bytes()
+}
+
+func encodeImage(w io.Writer, img image.Image) error {
+	return jpeg.Encode(w, img, &jpeg.Options{Quality: jpeg.DefaultQuality})
+}

@@ -1,7 +1,9 @@
+import { TFileType } from "@/lib/file-types";
+
 export type TContentCardProps = {
   file_name: string;
   folder?: string;
-  type?: "images" | "documents";
+  type?: TFileType;
   ID?: number;
   createdAt: string;
   updatedAt: string;

@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import useRenameFileMutation from "./hooks/use-rename-file-mutation";
 import { constant } from "@/lib/constant";
+import { TFileType } from "@/lib/file-types";
 import { Tooltip, TooltipContent } from "@/components/ui/tooltip";
 import { TooltipTrigger } from "@radix-ui/react-tooltip";
 import {
@@ -22,7 +23,7 @@ import { Input } from "@/components/ui/input";
 type RenameModalProps = {
   filename?: string;
   folder?: string;
-  type: "images" | "documents";
+  type: TFileType;
   isSelecting?: boolean;
 };
 
@@ -37,7 +38,7 @@ const RenameModal: React.FC<RenameModalProps> = ({
   const queryClient = useQueryClient();
 
   const renameFileMutation = useRenameFileMutation(
-    type === "documents" ? "doc" : "image",
+    type,
     {
       onSuccess: () => {
         toast.success("Renamed file!", {
@@ -45,9 +46,7 @@ const RenameModal: React.FC<RenameModalProps> = ({
         });
         setIsOpen(false);
         queryClient.invalidateQueries({
-          queryKey: constant.queryKeys.images(
-            type === "images" ? "images" : "documents"
-          ),
+          queryKey: constant.queryKeys.images(type),
         });
       },
       onError: (err) => {
@@ -91,7 +90,7 @@ const RenameModal: React.FC<RenameModalProps> = ({
           </DialogTrigger>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          <p>Rename {type === "images" ? "Image" : "Document"}</p>
+          <p>Rename file</p>
         </TooltipContent>
       </Tooltip>
       <DialogContent className="sm:max-w-[425px]">

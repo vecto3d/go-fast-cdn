@@ -25,7 +25,11 @@ func ConnectToDB() {
 	if err != nil {
 		os.Mkdir(dbPath, 0o755)
 		log.Printf("DB not found, creating at %v/main.db...", dbPath)
-		os.Create(fmt.Sprintf("%v/main.db", dbPath))
+		// The handle has to be closed, or the file stays locked for the rest
+		// of the process's life on Windows.
+		if file, err := os.Create(fmt.Sprintf("%v/main.db", dbPath)); err == nil {
+			file.Close()
+		}
 	}
 
 	database, err := gorm.Open(sqlite.Open(fmt.Sprintf("%v/main.db", dbPath)), &gorm.Config{
@@ -36,7 +40,8 @@ func ConnectToDB() {
 	}
 	log.Println("Connected to database!")
 
-	database.AutoMigrate(&models.Image{}, &models.Doc{}, &models.Config{})
+	database.AutoMigrate(&models.Config{})
+	migrateFileTables(database)
 	DB = database
 	log.Println("Database initialized!")
 }

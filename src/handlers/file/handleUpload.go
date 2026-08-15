@@ -11,11 +11,16 @@ import (
 	"github.com/kevinanielsen/go-fast-cdn/src/util"
 )
 
-func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
+func (h *FileHandler) HandleUpload(c *gin.Context) {
+	fileType, repo, ok := h.resolve(c)
+	if !ok {
+		return
+	}
+
 	newName := c.PostForm("filename")
 	folder := util.SanitizeFolder(c.PostForm("folder"))
 
-	fileHeader, err := c.FormFile("image")
+	fileHeader, err := c.FormFile(fileType.FormField)
 	if err != nil {
 		c.String(http.StatusBadRequest, "Failed to read file: %s", err.Error())
 		return
@@ -26,7 +31,6 @@ func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Failed to open file: %s", err.Error())
 		return
 	}
-
 	defer file.Close()
 
 	fileBuffer := make([]byte, 512)
@@ -37,29 +41,16 @@ func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
 		return
 	}
 
-	fileType := http.DetectContentType(fileBuffer)
-
-	allowedMimeTypes := map[string]bool{
-		"image/jpeg": true,
-		"image/jpg":  true,
-		"image/png":  true,
-		"image/gif":  true,
-		"image/webp": true,
-		"image/bmp":  true,
-	}
-
-	if !allowedMimeTypes[fileType] {
-		c.String(http.StatusBadRequest, "Invalid file type")
+	detectedType := util.DetectContentType(fileBuffer)
+	if !fileType.AllowedMimeTypes[detectedType] {
+		c.String(http.StatusBadRequest, "Invalid file type: %s", detectedType)
 		return
 	}
 
 	fileHashBuffer := md5.Sum(fileBuffer)
 
-	var filename string
-
-	if newName == "" {
-		filename = fileHeader.Filename
-	} else {
+	filename := fileHeader.Filename
+	if newName != "" {
 		filename = newName + filepath.Ext(fileHeader.Filename)
 	}
 
@@ -69,27 +60,24 @@ func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
 		return
 	}
 
-	image := models.Image{
-		FileName: filteredFilename,
-		Folder:   folder,
-		Checksum: fileHashBuffer[:],
-	}
-
-	imageInDatabase := h.repo.GetImageByCheckSum(fileHashBuffer[:])
-	if len(imageInDatabase.Checksum) > 0 {
+	if existing := repo.GetByCheckSum(fileHashBuffer[:]); len(existing.Checksum) > 0 {
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "File already exists",
 		})
 		return
 	}
 
-	savedFilename, err := h.repo.AddImage(image)
+	savedFilename, err := repo.Add(models.FileRecord{
+		FileName: filteredFilename,
+		Folder:   folder,
+		Checksum: fileHashBuffer[:],
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	destination := filepath.Join(util.ExPath, "uploads", "images", folder)
+	destination := filepath.Join(util.ExPath, "uploads", fileType.Name, folder)
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		c.String(http.StatusInternalServerError, "Failed to create folder: %s", err.Error())
 		return
@@ -101,9 +89,7 @@ func (h *ImageHandler) HandleImageUpload(c *gin.Context) {
 		return
 	}
 
-	body := gin.H{
-		"file_url": c.Request.Host + "/api/cdn/download/images/" + util.URLPath(folder, savedFilename),
-	}
-
-	c.JSON(http.StatusOK, body)
+	c.JSON(http.StatusOK, gin.H{
+		"file_url": downloadURL(c, fileType.Name, folder, savedFilename),
+	})
 }

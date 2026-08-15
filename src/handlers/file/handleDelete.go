@@ -7,35 +7,39 @@ import (
 	"github.com/kevinanielsen/go-fast-cdn/src/util"
 )
 
-func (h *ImageHandler) HandleImageDelete(c *gin.Context) {
+func (h *FileHandler) HandleDelete(c *gin.Context) {
+	fileType, repo, ok := h.resolve(c)
+	if !ok {
+		return
+	}
+
 	fileName := c.Param("filename")
 	if fileName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Doc name is required",
+			"error": "File name is required",
 		})
 		return
 	}
 
 	folder := util.SanitizeFolder(c.Query("folder"))
 
-	deletedFileName, success := h.repo.DeleteImage(folder, fileName)
+	deletedFileName, success := repo.Delete(folder, fileName)
 	if !success {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Image not found",
+			"error": "File not found",
 		})
 		return
 	}
 
-	err := util.DeleteFile(folder, deletedFileName, "images")
-	if err != nil {
+	if err := util.DeleteFile(folder, deletedFileName, fileType.Name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to delete image",
+			"error": "Failed to delete file",
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "Image deleted successfully",
+		"message":  "File deleted successfully",
 		"fileName": deletedFileName,
 	})
 }

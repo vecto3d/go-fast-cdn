@@ -8,13 +8,17 @@ import (
 	"github.com/kevinanielsen/go-fast-cdn/src/validations"
 )
 
-func (h *DocHandler) HandleDocsRename(c *gin.Context) {
+func (h *FileHandler) HandleRename(c *gin.Context) {
+	fileType, repo, ok := h.resolve(c)
+	if !ok {
+		return
+	}
+
 	oldName := c.PostForm("filename")
 	newName := c.PostForm("newname")
 	folder := util.SanitizeFolder(c.PostForm("folder"))
 
-	err := validations.ValidateRenameInput(oldName, newName)
-	if err != nil {
+	if err := validations.ValidateRenameInput(oldName, newName); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
@@ -25,14 +29,12 @@ func (h *DocHandler) HandleDocsRename(c *gin.Context) {
 		return
 	}
 
-	err = util.RenameFile(folder, oldName, filteredNewName, "docs")
-	if err != nil {
+	if err := util.RenameFile(folder, oldName, filteredNewName, fileType.Name); err != nil {
 		c.String(http.StatusInternalServerError, "Failed to rename file: %s", err.Error())
 		return
 	}
 
-	err = h.repo.RenameDoc(folder, oldName, filteredNewName)
-	if err != nil {
+	if err := repo.Rename(folder, oldName, filteredNewName); err != nil {
 		c.String(http.StatusInternalServerError, "Failed to rename file: %s", err.Error())
 		return
 	}

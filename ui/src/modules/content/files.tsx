@@ -3,7 +3,32 @@ import useGetFilesQuery from "./hooks/use-get-files-query";
 import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ChevronRight, Folder, Home, List, Trash, X } from "lucide-react";
+import {
+  ChevronRight,
+  Folder,
+  FolderPlus,
+  Home,
+  List,
+  Trash,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { TFileType } from "@/lib/file-types";
+import { sanitizeFolder } from "@/utils";
+import {
+  useCreateFolderMutation,
+  useDeleteFolderMutation,
+  useFoldersQuery,
+} from "./hooks/use-folders";
 import { cn } from "@/lib/utils";
 import MainContentWrapper from "@/components/layouts/main-content-wrapper";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,11 +52,16 @@ import {
 import UploadModal from "./upload/upload-modal";
 
 type TFilesProps = {
-  type: "images" | "documents";
+  type: TFileType;
 };
 
 const Files: React.FC<TFilesProps> = ({ type }) => {
   const files = useGetFilesQuery({ type });
+  const folderList = useFoldersQuery(type);
+  const createFolder = useCreateFolderMutation(type);
+  const deleteFolder = useDeleteFolderMutation(type);
+  const [newFolder, setNewFolder] = useState("");
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [search, setSearch] = useState("");
   const [debounceSearch, setDebounceSearch] = useState("");
   const [folder, setFolder] = useState("");
@@ -39,9 +69,7 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
 
-  const deleteMutation = useDeleteFileMutation(
-    type === "documents" ? "doc" : "image"
-  );
+  const deleteMutation = useDeleteFileMutation(type);
 
   const queryClient = useQueryClient();
 
@@ -69,19 +97,28 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
     },
   });
 
-  // Folders exist only where files do, so both the contents of the current
-  // folder and the list of its subfolders are derived from the file list.
+  // Subfolders come from the folders that exist on disk (so empty ones show up)
+  // union the folders the files themselves are in.
   const { filteredFiles, subFolders } = useMemo(() => {
     const prefix = folder ? `${folder}/` : "";
     const inFolder: typeof files.data = [];
     const names = new Set<string>();
 
+    const addIfBelow = (path: string) => {
+      if (path === folder || !path.startsWith(prefix)) return;
+      names.add(path.slice(prefix.length).split("/")[0]);
+    };
+
+    for (const path of folderList.data ?? []) {
+      addIfBelow(path);
+    }
+
     for (const file of files.data ?? []) {
       const fileFolder = file.folder ?? "";
       if (fileFolder === folder) {
         inFolder.push(file);
-      } else if (fileFolder.startsWith(prefix)) {
-        names.add(fileFolder.slice(prefix.length).split("/")[0]);
+      } else {
+        addIfBelow(fileFolder);
       }
     }
 
@@ -91,7 +128,17 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
       ),
       subFolders: [...names].sort(),
     };
-  }, [files.data, folder, search]);
+  }, [files.data, folderList.data, folder, search]);
+
+  // How much a folder delete would take with it, for the confirm dialog.
+  const filesUnder = useCallback(
+    (path: string) =>
+      (files.data ?? []).filter(
+        (file) =>
+          (file.folder ?? "") === path || (file.folder ?? "").startsWith(`${path}/`)
+      ).length,
+    [files.data]
+  );
 
   const breadcrumbs = useMemo(
     () => (folder ? folder.split("/") : []),
@@ -218,6 +265,66 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
                   <List />
                   Select
                 </Button>
+                <Dialog
+                  open={isCreatingFolder}
+                  onOpenChange={(open) => {
+                    setIsCreatingFolder(open);
+                    if (!open) setNewFolder("");
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <FolderPlus />
+                      New Folder
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const name = sanitizeFolder(newFolder);
+                        if (!name) {
+                          toast.error("Folder name empty!");
+                          return;
+                        }
+                        createFolder.mutate(
+                          folder ? `${folder}/${name}` : name,
+                          {
+                            onSuccess: () => {
+                              setIsCreatingFolder(false);
+                              setNewFolder("");
+                            },
+                          }
+                        );
+                      }}
+                    >
+                      <DialogHeader>
+                        <DialogTitle>New folder</DialogTitle>
+                        <DialogDescription>
+                          Created in {folder ? `${type}/${folder}` : type}. Use
+                          "/" to nest deeper.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4">
+                        <Input
+                          value={newFolder}
+                          onChange={(e) => setNewFolder(e.target.value)}
+                          placeholder="e.g. logos"
+                          aria-label="Folder name"
+                          autoFocus
+                        />
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          type="submit"
+                          disabled={createFolder.isPending}
+                        >
+                          {createFolder.isPending ? "Creating..." : "Create"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
                 <UploadModal placement="header" type={type} folder={folder} />
               </>
             )}
@@ -252,19 +359,62 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
           ))}
         </nav>
         <div className="flex flex-wrap gap-4">
-          {subFolders.map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() =>
-                handleOpenFolder(folder ? `${folder}/${name}` : name)
-              }
-              className="border rounded-lg shadow-lg flex flex-col w-64 max-w-[256px] items-center justify-center gap-2 p-4 hover:bg-accent transition-colors"
-            >
-              <Folder size="64" />
-              <span className="truncate w-full text-center">{name}</span>
-            </button>
-          ))}
+          {subFolders.map((name) => {
+            const path = folder ? `${folder}/${name}` : name;
+            const count = filesUnder(path);
+
+            return (
+              <div
+                key={name}
+                className="border rounded-lg shadow-lg flex flex-col w-64 max-w-[256px] items-center justify-center gap-2 p-4 relative group"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleOpenFolder(path)}
+                  className="flex flex-col items-center gap-2 w-full hover:opacity-80 transition-opacity"
+                >
+                  <Folder size="64" />
+                  <span className="truncate w-full text-center">{name}</span>
+                  <span className="text-muted-foreground text-sm">
+                    {count === 1 ? "1 file" : `${count} files`}
+                  </span>
+                </button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 text-destructive"
+                      aria-label={`Delete folder ${name}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete "{name}"?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {count === 0
+                          ? "This folder is empty. It will be removed."
+                          : `This deletes the folder, its subfolders and ${
+                              count === 1 ? "1 file" : `${count} files`
+                            }. This cannot be undone.`}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className={buttonVariants({ variant: "destructive" })}
+                        onClick={() => deleteFolder.mutate(path)}
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            );
+          })}
           {files.isLoading ? (
             <>
               <Skeleton className="min-h-[264px] w-64 max-w-[256px]" />

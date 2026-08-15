@@ -2,15 +2,16 @@ package router
 
 import (
 	"net/http"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kevinanielsen/go-fast-cdn/src/database"
 	"github.com/kevinanielsen/go-fast-cdn/src/handlers"
 	authHandlers "github.com/kevinanielsen/go-fast-cdn/src/handlers/auth"
 	dbHandlers "github.com/kevinanielsen/go-fast-cdn/src/handlers/db"
-	dHandlers "github.com/kevinanielsen/go-fast-cdn/src/handlers/docs"
-	iHandlers "github.com/kevinanielsen/go-fast-cdn/src/handlers/image"
+	fHandlers "github.com/kevinanielsen/go-fast-cdn/src/handlers/file"
 	"github.com/kevinanielsen/go-fast-cdn/src/middleware"
+	"github.com/kevinanielsen/go-fast-cdn/src/models"
 	"github.com/kevinanielsen/go-fast-cdn/src/util"
 )
 
@@ -45,21 +46,21 @@ func (s *Server) AddApiRoutes() {
 	}
 
 	cdn := api.Group("/cdn")
-	docHandler := dHandlers.NewDocHandler(database.NewDocRepo(database.DB))
-	imageHandler := iHandlers.NewImageHandler(database.NewImageRepo(database.DB))
+	fileHandler := fHandlers.NewFileHandler()
 
 	// Public CDN routes (read-only)
 	{
 		cdn.GET("/size", handlers.GetSizeHandler)
-		cdn.GET("/doc/all", docHandler.HandleAllDocs)
-		cdn.GET("/doc/:filename", dHandlers.HandleDocMetadata)
-		cdn.GET("/image/all", imageHandler.HandleAllImages)
-		cdn.GET("/image/:filename", iHandlers.HandleImageMetadata)
-		cdn.Static("/download/images", util.ExPath+"/uploads/images")
-		cdn.Static("/download/docs", util.ExPath+"/uploads/docs")
+		cdn.GET("/:type/all", fileHandler.HandleAll)
+		cdn.GET("/:type/:filename", fileHandler.HandleMetadata)
+		cdn.GET("/folder/:type", fileHandler.HandleFolderList)
+		for name := range models.FileTypes {
+			cdn.Static("/download/"+name, filepath.Join(util.ExPath, "uploads", name))
+		}
 		cdn.GET("/dashboard", handlers.NewDashboardHandler(
-			database.NewDocRepo(database.DB),
-			database.NewImageRepo(database.DB),
+			fileHandler.Repo("docs"),
+			fileHandler.Repo("images"),
+			fileHandler.Repo("audio"),
 			database.NewUserRepo(database.DB),
 			database.NewConfigRepo(database.DB),
 		).GetDashboard)
@@ -71,25 +72,28 @@ func (s *Server) AddApiRoutes() {
 
 	upload := cdnProtected.Group("upload")
 	{
-		upload.POST("/image", imageHandler.HandleImageUpload)
-		upload.POST("/doc", docHandler.HandleDocUpload)
+		upload.POST("/:type", fileHandler.HandleUpload)
 	}
 
 	delete := cdnProtected.Group("delete")
 	{
-		delete.DELETE("/image/:filename", imageHandler.HandleImageDelete)
-		delete.DELETE("/doc/:filename", docHandler.HandleDocDelete)
+		delete.DELETE("/:type/:filename", fileHandler.HandleDelete)
 	}
 
 	rename := cdnProtected.Group("rename")
 	{
-		rename.PUT("/image", imageHandler.HandleImageRename)
-		rename.PUT("/doc", docHandler.HandleDocsRename)
+		rename.PUT("/:type", fileHandler.HandleRename)
+	}
+
+	folder := cdnProtected.Group("folder")
+	{
+		folder.POST("/:type", fileHandler.HandleFolderCreate)
+		folder.DELETE("/:type", fileHandler.HandleFolderDelete)
 	}
 
 	resize := cdnProtected.Group("resize")
 	{
-		resize.PUT("/image", iHandlers.HandleImageResize)
+		resize.PUT("/image", fHandlers.HandleImageResize)
 	}
 	// Admin-only routes
 	adminRoutes := api.Group("/admin")

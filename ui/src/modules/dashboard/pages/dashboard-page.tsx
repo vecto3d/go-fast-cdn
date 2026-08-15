@@ -44,6 +44,10 @@ const DashboardPage = () => {
           title="Total Image"
           value={dashboardData?.files.images_count || 0}
         />
+        <InfoCard
+          title="Total Audio"
+          value={dashboardData?.files.audio_count || 0}
+        />
       </div>
     </MainContentWrapper>
   );

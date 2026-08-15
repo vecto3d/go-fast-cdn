@@ -3,9 +3,10 @@ type TDashboard = {
   files: {
     documents_count: number;
     images_count: number;
+    audio_count: number;
     recent_uploads: {
       filename: string;
-      type: "doc" | "image";
+      type: "doc" | "image" | "audio";
       uploaded_at: string;
     }[];
     total_size_bytes: number;

@@ -33,6 +33,7 @@ function AppContent() {
               <Route path="/">{<DashboardPage />}</Route>
               <Route path="/images">{<Files type="images" />}</Route>
               <Route path="/documents">{<Files type="documents" />}</Route>
+              <Route path="/audio">{<Files type="audio" />}</Route>
               <Route path="/settings">{<UserSettings />}</Route>
               <Route path="/admin/user-management">
                 <AdminRoute>

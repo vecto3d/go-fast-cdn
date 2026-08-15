@@ -4,11 +4,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import useGetFileDataQuery from "./hooks/use-get-file-data-query";
+import { TFileType } from "@/lib/file-types";
 
 type TFileDataModalProps = {
   filename: string;
   folder?: string;
-  type: "images" | "documents";
+  type: TFileType;
 };
 
 const FileDataModal: React.FC<TFileDataModalProps> = ({
