@@ -167,7 +167,7 @@ const UploadForm = ({
                 </div>
               ) : (
                 <div className="text-center">
-                  <p className="text-gray-500 text-center">
+                  <p className="text-muted-foreground text-center">
                     {tab === "documents"
                       ? "Drop your documents here, or click to select files."
                       : "Drop your images here, or click to select files."}

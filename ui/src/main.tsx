@@ -3,13 +3,16 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { QueryProvider } from "./providers/query.tsx";
+import { ThemeProvider } from "./providers/theme.tsx";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <QueryProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
-      <App />
-    </QueryProvider>
+    <ThemeProvider>
+      <QueryProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+        <App />
+      </QueryProvider>
+    </ThemeProvider>
   </React.StrictMode>
 );

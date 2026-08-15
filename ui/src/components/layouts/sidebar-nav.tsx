@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import UserProfile from "@/modules/auth/UserProfile";
 import UploadModal from "@/modules/content/upload/upload-modal";
+import { SidebarThemeToggle } from "@/components/theme-toggle";
 
 interface NavigationItem {
   href: string;
@@ -150,6 +151,7 @@ const SidebarNav = () => {
       </SidebarContent>
 
       <SidebarFooter>
+        <SidebarThemeToggle />
         <UserProfile />
       </SidebarFooter>
     </Sidebar>

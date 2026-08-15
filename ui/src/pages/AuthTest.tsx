@@ -8,7 +8,7 @@ import UserProfile from "@/modules/auth/UserProfile";
 const AuthTest: React.FC = () => {
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-muted py-8">
         <div className="max-w-4xl mx-auto px-4">
           <h1 className="text-3xl font-bold text-center mb-8">
             Authentication Test Page
@@ -16,51 +16,51 @@ const AuthTest: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Login Component Test */}
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-card p-6 rounded-lg shadow">
               <h2 className="text-xl font-semibold mb-4">Login Component</h2>
-              <div className="border border-gray-200 rounded p-4">
+              <div className="border border-border rounded p-4">
                 <Login />
               </div>
             </div>
 
             {/* Register Component Test */}
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-card p-6 rounded-lg shadow">
               <h2 className="text-xl font-semibold mb-4">Register Component</h2>
-              <div className="border border-gray-200 rounded p-4">
+              <div className="border border-border rounded p-4">
                 <Register />
               </div>
             </div>
 
             {/* User Profile Test */}
-            <div className="bg-white p-6 rounded-lg shadow md:col-span-2">
+            <div className="bg-card p-6 rounded-lg shadow md:col-span-2">
               <h2 className="text-xl font-semibold mb-4">
                 User Profile Component
               </h2>
-              <div className="border border-gray-200 rounded p-4">
+              <div className="border border-border rounded p-4">
                 <UserProfile />
               </div>
             </div>
           </div>
 
           {/* Status Indicators */}
-          <div className="mt-8 bg-white p-6 rounded-lg shadow">
+          <div className="mt-8 bg-card p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">Component Status</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-green-50 rounded">
                 <div className="text-green-600 font-semibold">✅ Login</div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Component loaded successfully
                 </div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded">
                 <div className="text-green-600 font-semibold">✅ Register</div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Component loaded successfully
                 </div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded">
                 <div className="text-green-600 font-semibold">✅ Profile</div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Component loaded successfully
                 </div>
               </div>
@@ -75,7 +75,7 @@ const AuthTest: React.FC = () => {
             <ol className="list-decimal list-inside space-y-2 text-sm">
               <li>
                 Start the Go backend server:{" "}
-                <code className="bg-gray-200 px-2 py-1 rounded">
+                <code className="bg-muted px-2 py-1 rounded">
                   go run main.go
                 </code>
               </li>

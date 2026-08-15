@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -44,18 +45,19 @@ const Login: React.FC = () => {
     setTwoFAToken("");
   };
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-muted py-12 px-4 sm:px-6 lg:px-8">
+      <ThemeToggle className="fixed top-4 right-4" />
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground">
             {showTwoFA ? "Two-Factor Authentication" : "Sign in to Go-Fast CDN"}
           </h2>
           {showTwoFA ? (
-            <p className="mt-2 text-center text-sm text-gray-600">
+            <p className="mt-2 text-center text-sm text-muted-foreground">
               Enter the 6-digit code from your authenticator app
             </p>
           ) : (
-            <p className="mt-2 text-center text-sm text-gray-600">
+            <p className="mt-2 text-center text-sm text-muted-foreground">
               Or{" "}
               <Link
                 to="/register"
@@ -83,7 +85,7 @@ const Login: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-input bg-background placeholder:text-muted-foreground text-foreground rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                   placeholder="Email address"
                 />
               </div>
@@ -99,7 +101,7 @@ const Login: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-input bg-background placeholder:text-muted-foreground text-foreground rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                   placeholder="Password"
                 />
               </div>
@@ -107,7 +109,7 @@ const Login: React.FC = () => {
           ) : (
             // Step 2: Two-Factor Authentication
             <div className="space-y-4">
-              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+              <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                 <p>
                   <strong>Email:</strong> {email}
                 </p>
@@ -128,7 +130,7 @@ const Login: React.FC = () => {
                   onChange={(e) =>
                     setTwoFAToken(e.target.value.replace(/\D/g, ""))
                   }
-                  className="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm text-center text-2xl tracking-widest"
+                  className="appearance-none relative block w-full px-3 py-3 border border-input bg-background placeholder:text-muted-foreground text-foreground rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm text-center text-2xl tracking-widest"
                   placeholder="000000"
                   autoComplete="one-time-code"
                   autoFocus

@@ -63,7 +63,7 @@ const UserManagementPage = () => {
               className={`px-2 py-1 rounded-full text-xs font-bold ${
                 role === "admin"
                   ? "bg-blue-100 text-blue-700"
-                  : "bg-gray-200 text-gray-700"
+                  : "bg-muted text-foreground"
               }`}
             >
               {role as string}
@@ -105,7 +105,7 @@ const UserManagementPage = () => {
         accessorKey: "last_login",
         cell: ({ getValue }) => {
           if (getValue() === null) {
-            return <span className="text-gray-500">Never</span>;
+            return <span className="text-muted-foreground">Never</span>;
           }
           const date = new Date(getValue() as string);
           return date.toLocaleDateString("en-US", {
@@ -123,7 +123,7 @@ const UserManagementPage = () => {
           return (
             <div className="flex gap-2">
               {currentUser && currentUser.id === userData.id ? (
-                <span className="text-gray-500 cursor-not-allowed">
+                <span className="text-muted-foreground cursor-not-allowed">
                   It's you!
                 </span>
               ) : (

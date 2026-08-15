@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import React from "react";
 import { Redirect } from "wouter";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -28,9 +29,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (requiredRole && user?.role !== requiredRole) {
     return (
       <div className="min-h-screen flex items-center justify-center">
+        <ThemeToggle className="fixed top-4 right-4" />
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Access Denied</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className="text-2xl font-bold text-foreground">Access Denied</h1>
+          <p className="mt-2 text-muted-foreground">
             You don't have permission to access this page.
           </p>
         </div>

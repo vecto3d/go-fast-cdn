@@ -53,10 +53,10 @@ const UserProfile: React.FC = () => {
               )}
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium text-foreground truncate">
                   {user.email}
                 </p>
-                <p className="text-xs text-gray-500 capitalize">{user.role} </p>
+                <p className="text-xs text-muted-foreground capitalize">{user.role} </p>
               </div>
               <ChevronUp className="ml-auto" />
             </SidebarMenuButton>

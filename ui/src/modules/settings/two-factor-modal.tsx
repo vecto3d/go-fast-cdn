@@ -71,21 +71,23 @@ const TwoFactorDialogs: React.FC<{
         <div className="space-y-6">
           {setupMutation.data?.otpauth_url && (
             <div className="flex flex-col items-center space-y-3">
-              <div className="bg-white p-3 rounded-lg border-2 border-gray-100 shadow-sm">
+              {/* Deliberately white in both themes: QR scanners need a light
+                  quiet zone around the code to get a reliable read. */}
+              <div className="bg-white p-3 rounded-lg border-2 border-border shadow-sm">
                 <QRCode value={setupMutation.data?.otpauth_url} size={140} />
               </div>
-              <p className="text-xs text-gray-600 text-center max-w-sm">
+              <p className="text-xs text-muted-foreground text-center max-w-sm">
                 Scan this QR code with your authenticator app (Google
                 Authenticator, Authy, etc.)
               </p>
             </div>
           )}
           {setupMutation.data?.secret && (
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">
+            <div className="bg-muted rounded-lg p-3 border border-border">
+              <h4 className="text-sm font-medium text-foreground mb-2">
                 Can't scan? Enter this key manually:
               </h4>
-              <div className="bg-white p-2 rounded border border-gray-300 font-mono text-xs text-gray-800 break-all select-all cursor-pointer hover:bg-gray-50 transition-colors">
+              <div className="bg-card p-2 rounded border border-input font-mono text-xs text-foreground break-all select-all cursor-pointer hover:bg-muted transition-colors">
                 {setupMutation.data?.secret}
               </div>
             </div>

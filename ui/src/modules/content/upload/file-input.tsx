@@ -19,7 +19,7 @@ const FileInput = ({ type, fileRef, onFileChange }: FileInputProps) => {
 
   return (
     <TabsContent value={type}>
-      <p className="text-gray-500 text-center">{UPLOAD_MESSAGES[type]}</p>
+      <p className="text-muted-foreground text-center">{UPLOAD_MESSAGES[type]}</p>
       <input
         type="file"
         accept={ACCEPT_TYPES[type]}
