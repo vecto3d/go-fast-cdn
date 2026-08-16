@@ -41,7 +41,9 @@ function AppContent() {
                   <Route path={FILE_TYPES[type].route}>
                     {<Files type={type} />}
                   </Route>
-                  <Route path={`${FILE_TYPES[type].route}/:rest*`}>
+                  {/* "*" matches any depth. ":rest*" matches exactly one
+                      segment, so nested folders rendered a blank page. */}
+                  <Route path={`${FILE_TYPES[type].route}/*`}>
                     {<Files type={type} />}
                   </Route>
                 </Fragment>
