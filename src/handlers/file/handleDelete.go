@@ -38,6 +38,10 @@ func (h *FileHandler) HandleDelete(c *gin.Context) {
 		return
 	}
 
+	// Without this the file stays downloadable from the edge for the rest of
+	// its cache lifetime, despite being gone from the origin.
+	util.PurgeURLs([]string{purgeURL(c, fileType.Name, folder, deletedFileName)})
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "File deleted successfully",
 		"fileName": deletedFileName,

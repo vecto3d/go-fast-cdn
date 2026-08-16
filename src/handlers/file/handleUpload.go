@@ -124,6 +124,10 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 		return
 	}
 
+	// The URL may have been served before (a delete and re-upload under the
+	// same name), so drop whatever the edge is holding for it.
+	util.PurgeURLs([]string{purgeURL(c, fileType.Name, folder, savedFilename)})
+
 	c.JSON(http.StatusOK, gin.H{
 		"file_url": downloadURL(c, fileType.Name, folder, savedFilename),
 	})

@@ -104,6 +104,7 @@ func (s *Server) AddApiRoutes() {
 	adminRoutes.Use(authMiddleware.RequireAuth(), authMiddleware.RequireAdmin())
 	{
 		adminRoutes.POST("/drop/database", dbHandlers.HandleDropDB)
+		adminRoutes.POST("/cache/purge", fileHandler.HandlePurgeCache)
 
 		adminUserHandler := authHandlers.NewAdminUserHandler(database.NewUserRepo(database.DB))
 		{

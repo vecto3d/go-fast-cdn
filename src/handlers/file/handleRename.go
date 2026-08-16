@@ -39,5 +39,10 @@ func (h *FileHandler) HandleRename(c *gin.Context) {
 		return
 	}
 
+	util.PurgeURLs([]string{
+		purgeURL(c, fileType.Name, folder, oldName),
+		purgeURL(c, fileType.Name, folder, filteredNewName),
+	})
+
 	c.JSON(http.StatusOK, gin.H{"status": "File renamed successfully"})
 }

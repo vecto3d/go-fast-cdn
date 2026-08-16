@@ -65,6 +65,12 @@ func (h *FileHandler) HandleBulkDelete(c *gin.Context) {
 		deleted = append(deleted, name)
 	}
 
+	purge := make([]string, 0, len(deleted))
+	for _, name := range deleted {
+		purge = append(purge, purgeURL(c, fileType.Name, folder, name))
+	}
+	util.PurgeURLs(purge)
+
 	c.JSON(http.StatusOK, gin.H{
 		"deleted":       len(deleted),
 		"failed":        failed,

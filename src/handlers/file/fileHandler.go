@@ -53,3 +53,14 @@ func (h *FileHandler) resolve(c *gin.Context) (models.FileType, models.FileRepos
 func downloadURL(c *gin.Context, fileType, folder, fileName string) string {
 	return c.Request.Host + "/api/cdn/download/" + fileType + "/" + util.URLPath(folder, fileName)
 }
+
+// purgeURL is the same URL with a scheme, which is the form Cloudflare purges
+// by. Empty when there is no host to build one from.
+func purgeURL(c *gin.Context, fileType, folder, fileName string) string {
+	base := util.PublicBaseURL(c.Request.Host)
+	if base == "" {
+		return ""
+	}
+
+	return base + "/api/cdn/download/" + fileType + "/" + util.URLPath(folder, fileName)
+}

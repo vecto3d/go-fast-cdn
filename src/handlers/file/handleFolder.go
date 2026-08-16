@@ -184,6 +184,15 @@ func (h *FileHandler) HandleFolderDelete(c *gin.Context) {
 		return
 	}
 
+	// Collect what is about to go, while the rows still say where it lives, so
+	// the edge can be told to stop serving it.
+	purge := []string{}
+	for _, file := range repo.GetAll() {
+		if file.Folder == folder || strings.HasPrefix(file.Folder, folder+"/") {
+			purge = append(purge, purgeURL(c, fileType.Name, file.Folder, file.FileName))
+		}
+	}
+
 	if err := os.RemoveAll(path); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to delete folder: " + err.Error(),
@@ -192,6 +201,7 @@ func (h *FileHandler) HandleFolderDelete(c *gin.Context) {
 	}
 
 	deleted := repo.DeleteFolder(folder)
+	util.PurgeURLs(purge)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Folder deleted successfully",
