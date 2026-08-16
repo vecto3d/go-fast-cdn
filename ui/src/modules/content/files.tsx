@@ -59,6 +59,10 @@ type TFilesProps = {
   type: TFileType;
 };
 
+// Cards mounted per chunk. Enough to fill a large screen, small enough that the
+// first paint is cheap.
+const CHUNK_SIZE = 60;
+
 const Files: React.FC<TFilesProps> = ({ type }) => {
   // The folder lives in the URL, so it is linkable and the back button walks
   // back up the tree instead of leaving the page.
@@ -80,6 +84,11 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
   const lastClicked = useRef<string | null>(null);
   const selectionAtDragStart = useRef<string[]>([]);
 
+  // How many cards are mounted. A folder of several hundred files renders in
+  // chunks as you scroll, because mounting them all at once is what made the
+  // page slow before a single click happened.
+  const [visibleCount, setVisibleCount] = useState(CHUNK_SIZE);
+
   // Leaving a folder invalidates the selection, which was folder-scoped.
   // Adjusting during render (React's documented pattern for state derived from
   // a changing input) avoids a second pass with the old folder's selection
@@ -90,6 +99,14 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
     setRenderedFolder(folder);
     setSelectedFiles([]);
     setIsSelecting(false);
+    setVisibleCount(CHUNK_SIZE);
+  }
+
+  // A new search is a new list, so start counting from the top again.
+  const [renderedSearch, setRenderedSearch] = useState(search);
+  if (renderedSearch !== search) {
+    setRenderedSearch(search);
+    setVisibleCount(CHUNK_SIZE);
   }
 
   const deleteMutation = useDeleteFileMutation(type);
@@ -253,6 +270,28 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
       clearTimeout(handler);
     };
   }, [debounceSearch]);
+
+  // Grow the mounted set when the sentinel at the end of the grid scrolls into
+  // view. rootMargin loads the next chunk slightly before it is needed.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const totalFiles = filteredFiles?.length ?? 0;
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || visibleCount >= totalFiles) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((count) => Math.min(count + CHUNK_SIZE, totalFiles));
+        }
+      },
+      { rootMargin: "600px" }
+    );
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [visibleCount, totalFiles]);
 
   const filesUnder = useCallback(
     (path: string) =>
@@ -544,7 +583,7 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
             </>
           ) : (
             <>
-              {filteredFiles?.map((file) => (
+              {filteredFiles?.slice(0, visibleCount).map((file) => (
                 <ContentCard
                   type={type}
                   file_name={file.file_name}
@@ -559,6 +598,29 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
                 />
               ))}
             </>
+          )}
+          {/* Sentinel: scrolling to it mounts the next chunk. The button does
+              the same thing explicitly, for keyboard users and for the cases
+              where the observer does not fire. */}
+          {visibleCount < totalFiles && (
+            <div
+              ref={sentinelRef}
+              className="w-full flex flex-col items-center gap-2 py-4"
+            >
+              <span className="text-muted-foreground text-sm">
+                Showing {visibleCount} of {totalFiles}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setVisibleCount((count) =>
+                    Math.min(count + CHUNK_SIZE, totalFiles)
+                  )
+                }
+              >
+                Load more
+              </Button>
+            </div>
           )}
           {box && (
             <div

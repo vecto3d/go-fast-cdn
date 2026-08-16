@@ -5,15 +5,13 @@ import FileDataModal from "./file-data-modal";
 import RenameModal from "./rename-modal";
 import ResizeModal from "./resize-modal";
 import useDeleteFileMutation from "./hooks/use-delete-file-mutation";
-import { Tooltip, TooltipContent } from "@/components/ui/tooltip";
-import { TooltipTrigger } from "@radix-ui/react-tooltip";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { encodeFilePath } from "@/utils";
 import { apiSegment, isResizable } from "@/lib/file-types";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { memo, useState } from "react";
 
 const ContentCard: React.FC<TContentCardProps> = ({
   file_name,
@@ -44,6 +42,23 @@ const ContentCard: React.FC<TContentCardProps> = ({
     onSelect(file_name, { shiftKey: event.shiftKey });
   };
 
+  const preview =
+    type === "images" ? (
+      <img
+        src={url}
+        alt={file_name}
+        width={224}
+        height={150}
+        loading="lazy"
+        decoding="async"
+        className="object-cover max-h-[150px] max-w-[224px]"
+      />
+    ) : type === "audio" ? (
+      <Music size="96" />
+    ) : (
+      <FileText size="128" />
+    );
+
   return (
     <div
       data-selection-key={selectionKey ?? file_name}
@@ -65,8 +80,9 @@ const ContentCard: React.FC<TContentCardProps> = ({
           aria-label="Select file"
         />
       )}
-      {type === "audio" && (
-        // Sits outside the dialog trigger so its controls stay clickable.
+      {type === "audio" && !isSelecting && (
+        // Sits outside the dialog trigger so its controls stay clickable, and
+        // is dropped entirely while selecting so it cannot eat the click.
         <audio
           controls
           preload="none"
@@ -75,7 +91,7 @@ const ContentCard: React.FC<TContentCardProps> = ({
           aria-label={`Play ${file_name}`}
         />
       )}
-      {type === "video" && (
+      {type === "video" && !isSelecting && (
         <video
           controls
           preload="metadata"
@@ -84,122 +100,95 @@ const ContentCard: React.FC<TContentCardProps> = ({
           aria-label={`Play ${file_name}`}
         />
       )}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogTrigger disabled={isSelecting}>
-          {type === "images" && (
-            <img
-              src={url}
-              alt={file_name}
-              width={224}
-              height={150}
-              loading="lazy"
-              className="object-cover max-h-[150px] max-w-[224px]"
-            />
-          )}
-          {type === "documents" && <FileText size="128" />}
-          {type === "audio" && <Music size="96" />}
-        </DialogTrigger>
-        <FileDataModal
-          filename={file_name}
-          folder={folder}
-          type={type}
-          isOpen={isDetailOpen}
-        />
-      </Dialog>
+      {/* A disabled trigger swallows the click instead of letting it reach the
+          card, which made the thumbnail — most of the card — unselectable. So
+          while selecting, the preview is rendered without any trigger at all. */}
+      {isSelecting ? (
+        <div className="pointer-events-none">{preview}</div>
+      ) : (
+        <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+          <DialogTrigger>{preview}</DialogTrigger>
+          <FileDataModal
+            filename={file_name}
+            folder={folder}
+            type={type}
+            isOpen={isDetailOpen}
+          />
+        </Dialog>
+      )}
       <div className="w-full flex flex-col gap-2">
-        <p className="truncate">{file_name}</p>
-        {/* Non-destructive buttons */}
-        <div className={`flex w-full justify-between ${disabled && "sr-only"}`}>
-          <div className="flex">
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-sky-600"
-                  onClick={() => {
-                    if (location.protocol == 'https:') {
-                      navigator.clipboard.writeText(url);
-                      toast.success("clipboard saved");
-                    } else {
-                      //https://stackoverflow.com/questions/72237719/not-being-able-to-copy-url-to-clipboard-without-adding-the-protocol-https
-                      const textArea = document.createElement("textarea");
-                      textArea.value = url;
-                      document.body.appendChild(textArea);
-                      textArea.focus({ preventScroll: true });
-                      textArea.select();
-                      document.execCommand('copy');
-                      document.body.removeChild(textArea);
-                      toast.success("clipboard saved");
-                    }
-                  }}
-                  aria-label="Copy Link"
-                  disabled={isSelecting}
-                >
-                  <Files />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Copy Link to clipboard</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-sky-600"
-                  disabled={isSelecting}
-                  asChild={!isSelecting}
-                >
-                  <a href={url} download aria-label="Download file">
-                    <DownloadCloud />
-                  </a>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Download file</p>
-              </TooltipContent>
-            </Tooltip>
-            <RenameModal
-              type={type}
-              filename={file_name}
-              folder={folder}
-              isSelecting={isSelecting}
-            />
-            {/* Resize re-encodes the image, so it only appears for the formats
-                the server has an encoder for. */}
-            {type === "images" && isResizable(file_name) && (
-              <ResizeModal
-                filename={file_name ?? ""}
-                folder={folder}
-                isSelecting={isSelecting}
-              />
-            )}
+        <p className="truncate" title={file_name}>
+          {file_name}
+        </p>
+        {/* The action row is only mounted when it can be used. Rendering it for
+            every card cost ten buttons and five tooltips per card, which is
+            what made a folder of several hundred files slow to interact with. */}
+        {!isSelecting && (
+          <div
+            className={`flex w-full justify-between ${disabled && "sr-only"}`}
+          >
+            <div className="flex">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-sky-600"
+                onClick={() => {
+                  if (location.protocol == "https:") {
+                    navigator.clipboard.writeText(url);
+                    toast.success("clipboard saved");
+                  } else {
+                    //https://stackoverflow.com/questions/72237719/not-being-able-to-copy-url-to-clipboard-without-adding-the-protocol-https
+                    const textArea = document.createElement("textarea");
+                    textArea.value = url;
+                    document.body.appendChild(textArea);
+                    textArea.focus({ preventScroll: true });
+                    textArea.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(textArea);
+                    toast.success("clipboard saved");
+                  }
+                }}
+                aria-label="Copy Link"
+                title="Copy link to clipboard"
+              >
+                <Files />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-sky-600"
+                asChild
+                title="Download file"
+              >
+                <a href={url} download aria-label="Download file">
+                  <DownloadCloud />
+                </a>
+              </Button>
+              <RenameModal type={type} filename={file_name} folder={folder} />
+              {/* Resize re-encodes the image, so it only appears for the formats
+                  the server has an encoder for. */}
+              {type === "images" && isResizable(file_name) && (
+                <ResizeModal filename={file_name ?? ""} folder={folder} />
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => file_name && handleDeleteFile()}
+                aria-label="Delete file"
+                title="Delete file"
+              >
+                <Trash2 className="inline" size="24" />
+              </Button>
+            </div>
           </div>
-          {/* Destructive buttons */}
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={() => file_name && handleDeleteFile()}
-                  aria-label="Delete file"
-                  disabled={isSelecting}
-                >
-                  <Trash2 className="inline" size="24" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Delete file</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default ContentCard;
+// Selection state changes on every click; without this, clicking one card
+// re-rendered all of them.
+export default memo(ContentCard);
