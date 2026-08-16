@@ -169,6 +169,62 @@ func TestHandleUploadRejectsDuplicate(t *testing.T) {
 	require.Contains(t, second.Body.String(), "already exists in this folder")
 }
 
+// The duplicate check is refusable: a set can legitimately contain the same
+// bytes under two names.
+func TestHandleUploadAllowsDuplicatesWhenAsked(t *testing.T) {
+	handler := newTestHandler(t)
+	content := encodeJPEG(t, 64, 48)
+
+	c, first := uploadRequest(t, "images", "image", "outfit-a.jpg", "police", content)
+	handler.HandleUpload(c)
+	require.Equal(t, http.StatusOK, first.Result().StatusCode)
+
+	// Same bytes, different name, with the check switched off.
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("image", "outfit-b.jpg")
+	require.NoError(t, err)
+	_, err = part.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteField("folder", "police"))
+	require.NoError(t, writer.WriteField("allow_duplicates", "true"))
+	require.NoError(t, writer.Close())
+
+	w := httptest.NewRecorder()
+	cc, _ := gin.CreateTestContext(w)
+	cc.Request = httptest.NewRequest(http.MethodPost, "/api/cdn/upload/images", body)
+	cc.Request.Header.Add("Content-Type", writer.FormDataContentType())
+	cc.Params = gin.Params{{Key: "type", Value: "images"}}
+
+	handler.HandleUpload(cc)
+
+	require.Equal(t, http.StatusOK, w.Result().StatusCode, w.Body.String())
+	require.Len(t, handler.Repo("images").GetAll(), 2)
+}
+
+// Two different files under one name must not clobber each other.
+func TestHandleUploadSuffixesATakenName(t *testing.T) {
+	handler := newTestHandler(t)
+
+	c, first := uploadRequest(t, "images", "image", "outfit.jpg", "police", encodeJPEG(t, 64, 48))
+	handler.HandleUpload(c)
+	require.Equal(t, http.StatusOK, first.Result().StatusCode)
+
+	cc, second := uploadRequest(t, "images", "image", "outfit.jpg", "police", encodeJPEG(t, 32, 24))
+	handler.HandleUpload(cc)
+	require.Equal(t, http.StatusOK, second.Result().StatusCode, second.Body.String())
+
+	names := []string{}
+	for _, file := range handler.Repo("images").GetAll() {
+		names = append(names, file.FileName)
+	}
+	require.ElementsMatch(t, []string{"outfit.jpg", "outfit-2.jpg"}, names)
+
+	// Both files are on disk: the first was not overwritten.
+	require.FileExists(t, filepath.Join(util.ExPath, "uploads", "images", "police", "outfit.jpg"))
+	require.FileExists(t, filepath.Join(util.ExPath, "uploads", "images", "police", "outfit-2.jpg"))
+}
+
 func TestHandleMetadata(t *testing.T) {
 	handler := newTestHandler(t)
 

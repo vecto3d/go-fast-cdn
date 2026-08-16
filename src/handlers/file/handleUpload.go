@@ -20,6 +20,7 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 
 	newName := c.PostForm("filename")
 	folder := util.SanitizeFolder(c.PostForm("folder"))
+	allowDuplicates := c.PostForm("allow_duplicates") == "true"
 
 	fileHeader, err := c.FormFile(fileType.FormField)
 	if err != nil {
@@ -85,12 +86,27 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 
 	// Scoped to the folder: the same asset genuinely belongs in more than one
 	// folder, and rejecting it there was never what "already exists" should mean.
-	if existing := repo.GetByCheckSum(folder, checksum); len(existing.Checksum) > 0 {
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "File already exists in this folder: " + existing.FileName,
-		})
+	// The caller can switch the check off when it has files that are legitimately
+	// identical under different names.
+	if !allowDuplicates {
+		if existing := repo.GetByCheckSum(folder, checksum); len(existing.Checksum) > 0 {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "File already exists in this folder: " + existing.FileName,
+			})
+			return
+		}
+	}
+
+	destination := filepath.Join(util.ExPath, "uploads", fileType.Name, folder)
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to create folder: %s", err.Error())
 		return
 	}
+
+	// Settle the name before the row is written, so a name already taken in
+	// this folder gets a suffix instead of overwriting the file that is there
+	// and leaving two rows pointing at one file.
+	filteredFilename = util.UniqueName(destination, filteredFilename)
 
 	savedFilename, err := repo.Add(models.FileRecord{
 		FileName: filteredFilename,
@@ -99,12 +115,6 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	destination := filepath.Join(util.ExPath, "uploads", fileType.Name, folder)
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		c.String(http.StatusInternalServerError, "Failed to create folder: %s", err.Error())
 		return
 	}
 

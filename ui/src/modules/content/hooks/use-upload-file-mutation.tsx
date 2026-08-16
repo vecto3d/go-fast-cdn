@@ -34,12 +34,14 @@ const errorText = (error: unknown) => {
 export const uploadFile = async (
   file: File,
   type: TFileType,
-  folder: string
+  folder: string,
+  allowDuplicates = false
 ) => {
   const segment = apiSegment(type);
   const form = new FormData();
   form.append(FORM_FIELD[segment], file);
   form.append("folder", folder);
+  form.append("allow_duplicates", String(allowDuplicates));
 
   const res = await cdnApiClient.post(`/upload/${segment}`, form, {
     headers: { "Content-Type": "multipart/form-data" },
@@ -57,7 +59,8 @@ export const uploadAll = async (
   files: File[],
   type: TFileType,
   folder: string,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  allowDuplicates = false
 ): Promise<UploadOutcome[]> => {
   const outcomes: UploadOutcome[] = new Array(files.length);
   let next = 0;
@@ -68,7 +71,7 @@ export const uploadAll = async (
       const index = next++;
       const file = files[index];
       try {
-        await uploadFile(file, type, folder);
+        await uploadFile(file, type, folder, allowDuplicates);
         outcomes[index] = { file, ok: true };
       } catch (error) {
         outcomes[index] = { file, ok: false, error: errorText(error) };

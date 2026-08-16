@@ -15,12 +15,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SidebarGroupAction } from "@/components/ui/sidebar";
 import { uploadAll } from "../hooks/use-upload-file-mutation";
 import toast from "react-hot-toast";
 import { constant } from "@/lib/constant";
+
+const ALLOW_DUPLICATES_KEY = "upload:allow-duplicates";
 
 type ConditionalUploadModalProps = { folder?: string } & (
   | { placement: "header"; type: TFileType }
@@ -42,6 +45,16 @@ const UploadModal = ({
   );
 
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  // Remembered, because someone who turns the check off usually has a whole
+  // batch of legitimately identical files to get through.
+  const [allowDuplicates, setAllowDuplicates] = useState(
+    () => localStorage.getItem(ALLOW_DUPLICATES_KEY) === "true"
+  );
+
+  const handleAllowDuplicates = useCallback((allow: boolean) => {
+    setAllowDuplicates(allow);
+    localStorage.setItem(ALLOW_DUPLICATES_KEY, String(allow));
+  }, []);
 
   const handleReset = useCallback(() => {
     setFiles([]);
@@ -64,7 +77,8 @@ const UploadModal = ({
         files.map(sanitizeFileName),
         tab,
         sanitizeFolder(folder),
-        (done, total) => setProgress({ done, total })
+        (done, total) => setProgress({ done, total }),
+        allowDuplicates
       );
     },
     onSuccess: async (outcomes) => {
@@ -142,6 +156,22 @@ const UploadModal = ({
             placeholder="Root — or e.g. logos/dark"
             disabled={isUploadPending}
           />
+        </div>
+
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="allow-duplicates"
+            checked={allowDuplicates}
+            onCheckedChange={(checked) => handleAllowDuplicates(checked === true)}
+            disabled={isUploadPending}
+          />
+          <div className="grid gap-1 leading-none">
+            <Label htmlFor="allow-duplicates">Allow duplicate files</Label>
+            <p className="text-muted-foreground text-sm">
+              Uploads files whose contents already exist in this folder. A name
+              that is taken gets a numbered suffix.
+            </p>
+          </div>
         </div>
 
         <UploadForm
