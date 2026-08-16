@@ -7,6 +7,7 @@ import {
 } from "@/types/auth";
 import { TUser } from "@/types/user";
 import axios, { AxiosResponse } from "axios";
+import { redirectToLogin, refreshSession } from "./refreshSession";
 
 const API_BASE_URL = "/api/auth";
 
@@ -39,31 +40,14 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/refresh`, {
-            refresh_token: refreshToken,
-          });
+        // Shared with every other request refreshing right now, so a burst of
+        // 401s cannot race each other into a revoked refresh token.
+        const accessToken = await refreshSession();
 
-          const {
-            access_token,
-            refresh_token: newRefreshToken,
-            user,
-          } = response.data;
-          localStorage.setItem("accessToken", access_token);
-          localStorage.setItem("refreshToken", newRefreshToken);
-          localStorage.setItem("user", JSON.stringify(user));
-
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-          return apiClient(originalRequest);
-        }
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return apiClient(originalRequest);
       } catch {
-        // Refresh failed, clear auth data and redirect to login
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        redirectToLogin();
       }
     }
 
@@ -152,31 +136,12 @@ cdnApiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        if (refreshToken) {
-          const response = await axios.post("/api/auth/refresh", {
-            refresh_token: refreshToken,
-          });
+        const accessToken = await refreshSession();
 
-          const {
-            access_token,
-            refresh_token: newRefreshToken,
-            user,
-          } = response.data;
-          localStorage.setItem("accessToken", access_token);
-          localStorage.setItem("refreshToken", newRefreshToken);
-          localStorage.setItem("user", JSON.stringify(user));
-
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-          return cdnApiClient(originalRequest);
-        }
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return cdnApiClient(originalRequest);
       } catch {
-        // Refresh failed, clear auth data
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        redirectToLogin();
       }
     }
 

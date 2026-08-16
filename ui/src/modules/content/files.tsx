@@ -17,11 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import MainContentWrapper from "@/components/layouts/main-content-wrapper";
 import { Skeleton } from "@/components/ui/skeleton";
-import useDeleteFileMutation from "./hooks/use-delete-file-mutation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { constant } from "@/lib/constant";
-import { AxiosError } from "axios";
-import { IErrorResponse } from "@/types/response";
+import { useBulkDeleteMutation } from "./hooks/use-delete-file-mutation";
 import toast from "react-hot-toast";
 import {
   AlertDialog,
@@ -109,33 +105,24 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
     setVisibleCount(CHUNK_SIZE);
   }
 
-  const deleteMutation = useDeleteFileMutation(type);
+  // Deleting the selection goes through one bulk request per batch. Firing one
+  // request per file meant hundreds of parallel calls, hundreds of toasts, and
+  // — once any of them hit an expired token — a refresh race that logged the
+  // user out mid-delete.
+  const { mutate: deleteFilesMutation, isPending: isDeletingFilesLoading } =
+    useBulkDeleteMutation(type);
 
-  const queryClient = useQueryClient();
-
-  const {
-    mutateAsync: deleteFilesMutation,
-    isPending: isDeletingFilesLoading,
-  } = useMutation({
-    mutationFn: () =>
-      Promise.all(
-        selectedFiles.map((fileName) =>
-          deleteMutation.mutateAsync({ filename: fileName, folder })
-        )
-      ),
-    onSuccess: () => {
-      setSelectedFiles([]);
-      setIsSelecting(false);
-      queryClient.invalidateQueries({
-        queryKey: constant.queryKeys.images(type),
-      });
-    },
-    onError: (error) => {
-      const errorResponse = error as AxiosError<IErrorResponse>;
-      const message = errorResponse.response?.data?.error || "Delete failed";
-      toast.error(message);
-    },
-  });
+  const handleDeleteSelected = useCallback(() => {
+    deleteFilesMutation(
+      { files: selectedFiles, folder },
+      {
+        onSuccess: () => {
+          setSelectedFiles([]);
+          setIsSelecting(false);
+        },
+      }
+    );
+  }, [deleteFilesMutation, selectedFiles, folder]);
 
   // Subfolders come from the folders that exist on disk (so empty ones show up)
   // union the folders the files themselves are in.
@@ -383,7 +370,7 @@ const Files: React.FC<TFilesProps> = ({ type }) => {
                         className={buttonVariants({
                           variant: "destructive",
                         })}
-                        onClick={() => deleteFilesMutation()}
+                        onClick={handleDeleteSelected}
                       >
                         Continue
                       </AlertDialogAction>

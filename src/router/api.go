@@ -79,6 +79,9 @@ func (s *Server) AddApiRoutes() {
 	delete := cdnProtected.Group("delete")
 	{
 		delete.DELETE("/:type/:filename", fileHandler.HandleDelete)
+		// Bulk delete is a POST because it carries a body, which DELETE is not
+		// reliably allowed to.
+		delete.POST("/:type/bulk", fileHandler.HandleBulkDelete)
 	}
 
 	rename := cdnProtected.Group("rename")
