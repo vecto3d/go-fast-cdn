@@ -11,7 +11,9 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { encodeFilePath } from "@/utils";
-import { apiSegment } from "@/lib/file-types";
+import { apiSegment, isResizable } from "@/lib/file-types";
+import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 const ContentCard: React.FC<TContentCardProps> = ({
   file_name,
@@ -21,7 +23,10 @@ const ContentCard: React.FC<TContentCardProps> = ({
   isSelected,
   onSelect,
   isSelecting,
+  selectionKey,
 }) => {
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
   const url = `${window.location.protocol}//${
     window.location.host
   }/api/cdn/download/${apiSegment(type)}/${encodeFilePath(folder, file_name)}`;
@@ -32,14 +37,31 @@ const ContentCard: React.FC<TContentCardProps> = ({
     deleteFile.mutate({ filename: file_name, folder });
   };
 
+  // While selecting, the whole card is the hit area — clicking a 16px checkbox
+  // 200 times is the kind of thing that makes bulk selection not worth using.
+  const handleCardClick = (event: React.MouseEvent) => {
+    if (!isSelecting || !onSelect) return;
+    onSelect(file_name, { shiftKey: event.shiftKey });
+  };
+
   return (
-    <div className="border rounded-lg shadow-lg flex flex-col min-h-[264px] w-64 max-w-[256px] justify-between items-center gap-4 p-4 relative">
+    <div
+      data-selection-key={selectionKey ?? file_name}
+      onClick={handleCardClick}
+      className={cn(
+        "border rounded-lg shadow-lg flex flex-col min-h-[264px] w-64 max-w-[256px] justify-between items-center gap-4 p-4 relative transition-colors",
+        {
+          "cursor-pointer select-none": isSelecting,
+          "ring-2 ring-primary bg-accent": isSelecting && isSelected,
+        }
+      )}
+    >
       {isSelecting && (
         <Checkbox
-          className="absolute top-2 right-2 bg-background"
+          className="absolute top-2 right-2 bg-background pointer-events-none"
           checked={isSelected}
-          onCheckedChange={() => onSelect && onSelect(file_name)}
           disabled={disabled}
+          tabIndex={-1}
           aria-label="Select file"
         />
       )}
@@ -53,7 +75,16 @@ const ContentCard: React.FC<TContentCardProps> = ({
           aria-label={`Play ${file_name}`}
         />
       )}
-      <Dialog>
+      {type === "video" && (
+        <video
+          controls
+          preload="metadata"
+          src={url}
+          className="max-h-[150px] max-w-[224px]"
+          aria-label={`Play ${file_name}`}
+        />
+      )}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogTrigger disabled={isSelecting}>
           {type === "images" && (
             <img
@@ -61,13 +92,19 @@ const ContentCard: React.FC<TContentCardProps> = ({
               alt={file_name}
               width={224}
               height={150}
+              loading="lazy"
               className="object-cover max-h-[150px] max-w-[224px]"
             />
           )}
           {type === "documents" && <FileText size="128" />}
           {type === "audio" && <Music size="96" />}
         </DialogTrigger>
-        <FileDataModal filename={file_name} folder={folder} type={type} />
+        <FileDataModal
+          filename={file_name}
+          folder={folder}
+          type={type}
+          isOpen={isDetailOpen}
+        />
       </Dialog>
       <div className="w-full flex flex-col gap-2">
         <p className="truncate">{file_name}</p>
@@ -130,7 +167,9 @@ const ContentCard: React.FC<TContentCardProps> = ({
               folder={folder}
               isSelecting={isSelecting}
             />
-            {type === "images" && (
+            {/* Resize re-encodes the image, so it only appears for the formats
+                the server has an encoder for. */}
+            {type === "images" && isResizable(file_name) && (
               <ResizeModal
                 filename={file_name ?? ""}
                 folder={folder}

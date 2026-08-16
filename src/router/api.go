@@ -55,7 +55,8 @@ func (s *Server) AddApiRoutes() {
 		cdn.GET("/:type/:filename", fileHandler.HandleMetadata)
 		cdn.GET("/folder/:type", fileHandler.HandleFolderList)
 		for name := range models.FileTypes {
-			cdn.Static("/download/"+name, filepath.Join(util.ExPath, "uploads", name))
+			cdn.Group("/download/"+name, middleware.ServedFileHeaders()).
+				Static("", filepath.Join(util.ExPath, "uploads", name))
 		}
 		cdn.GET("/dashboard", handlers.NewDashboardHandler(
 			fileHandler.Repo("docs"),

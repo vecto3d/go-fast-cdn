@@ -17,6 +17,15 @@ export const sanitizeFolder = (folder: string) =>
     .filter((segment) => segment !== "" && segment !== "." && segment !== "..")
     .join("/");
 
+// Mirrors the backend's Slugify so the URL preview shown while creating a
+// folder matches the path the server actually creates.
+export const slugify = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._/]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 export const sanitizeFileName = (file: File) => {
   const ext = file.name.split(".").pop();
   const base = file.name.replace(/\.[^/.]+$/, "").replace(/\./g, "-");

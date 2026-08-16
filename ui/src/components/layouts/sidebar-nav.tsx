@@ -14,7 +14,14 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "../ui/sidebar";
-import { FilesIcon, Image, LayoutDashboard, Music, Users } from "lucide-react";
+import {
+  Clapperboard,
+  FilesIcon,
+  Image,
+  LayoutDashboard,
+  Music,
+  Users,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import UserProfile from "@/modules/auth/UserProfile";
@@ -55,6 +62,12 @@ const CONTENT_ITEMS: NavigationItem[] = [
     icon: Music,
     label: "Audio",
     tooltip: "Audio",
+  },
+  {
+    href: "/video",
+    icon: Clapperboard,
+    label: "Video",
+    tooltip: "Video",
   },
 ];
 

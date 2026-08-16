@@ -1,5 +1,5 @@
 import { sanitizeFileName } from "@/utils";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import ImageCardUpload from "./image-card-upload";
 import FileInput from "./file-input";
@@ -7,9 +7,9 @@ import toast from "react-hot-toast";
 import DocCardUpload from "./doc-card-upload";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  acceptedTypes,
   FILE_TYPE_NAMES,
   FILE_TYPES,
+  isAccepted,
   TFileType,
 } from "@/lib/file-types";
 
@@ -32,6 +32,19 @@ const UploadForm = ({
 }: UploadProps) => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // One object URL per file, released when the selection changes. Creating
+  // these inline during render leaked one per render per file, which is what
+  // made a large batch heavy before it even started uploading.
+  const previews = useMemo(
+    () => (tab === "images" ? files.map((file) => URL.createObjectURL(file)) : []),
+    [files, tab]
+  );
+
+  useEffect(
+    () => () => previews.forEach((preview) => URL.revokeObjectURL(preview)),
+    [previews]
+  );
 
   const handleOnChangeFiles = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,9 +86,10 @@ const UploadForm = ({
 
       const droppedFiles = Array.from(e.dataTransfer.files);
 
-      // check if the dropped files match the current tab
+      // Check by extension: browsers report nothing useful for heic, avif or
+      // some svg files, and the server validates by extension too.
       const isValidFiles = droppedFiles.every((file) =>
-        acceptedTypes(tab).includes(file.type)
+        isAccepted(tab, file.name)
       );
       if (!isValidFiles) {
         toast.error(`Invalid file type. Please upload ${tab} only.`);
@@ -118,7 +132,7 @@ const UploadForm = ({
                 key={file.name + index}
                 fileName={sanitizeFileName(file).name}
                 onClickDelete={() => handleDeleteFile(index)}
-                imageUrl={URL.createObjectURL(file)}
+                imageUrl={previews[index]}
               />
             ) : (
               <DocCardUpload

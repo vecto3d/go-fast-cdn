@@ -3,9 +3,9 @@ package models
 import "gorm.io/gorm"
 
 // FileRecord is the row shape shared by every file type. Each type keeps its
-// own table (images, docs, audio) — the repository selects which one — so the
-// columns and JSON stay exactly what they were when images and docs each had
-// their own model.
+// own table (images, docs, audio, video) — the repository selects which one —
+// so the columns and JSON stay exactly what they were when images and docs each
+// had their own model.
 type FileRecord struct {
 	gorm.Model
 
@@ -18,16 +18,27 @@ type FileRecord struct {
 }
 
 // FileType describes one kind of file the CDN stores. Everything that differs
-// between images, docs and audio lives here; adding a fourth type is one entry
-// in FileTypes.
+// between the types lives here; adding another is one entry in FileTypes.
 type FileType struct {
 	// Name is both the URL segment (/api/cdn/upload/images) and the directory
 	// below uploads/.
 	Name string
 	// FormField is the multipart field the upload arrives in, which differs
 	// from Name for historical reasons ("image", not "images").
-	FormField        string
-	AllowedMimeTypes map[string]bool
+	FormField string
+	// Extensions is the allowlist, lowercased and including the dot. Content is
+	// additionally checked against util's signature table for the formats that
+	// have a reliable marker.
+	Extensions map[string]bool
+}
+
+func extensions(list ...string) map[string]bool {
+	set := make(map[string]bool, len(list))
+	for _, extension := range list {
+		set[extension] = true
+	}
+
+	return set
 }
 
 // FileTypes is the registry of supported types, keyed by URL segment.
@@ -35,52 +46,32 @@ var FileTypes = map[string]FileType{
 	"images": {
 		Name:      "images",
 		FormField: "image",
-		AllowedMimeTypes: map[string]bool{
-			"image/jpeg": true,
-			"image/jpg":  true,
-			"image/png":  true,
-			"image/gif":  true,
-			"image/webp": true,
-			"image/bmp":  true,
-		},
+		Extensions: extensions(
+			".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
+			".svg", ".avif", ".heic", ".heif", ".tif", ".tiff", ".ico",
+		),
 	},
 	"docs": {
 		Name:      "docs",
 		FormField: "doc",
-		AllowedMimeTypes: map[string]bool{
-			"text/plain":                true,
-			"text/plain; charset=utf-8": true,
-			"application/msword":        true,
-			"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   true,
-			"application/vnd.openxmlformats-officedocument.presentationml.presentation": true,
-			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         true,
-			"application/pdf":       true,
-			"application/rtf":       true,
-			"application/x-freearc": true,
-			"application/zip":       true,
-		},
+		Extensions: extensions(
+			".txt", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+			".pdf", ".rtf", ".arc", ".zip",
+		),
 	},
 	"audio": {
 		Name:      "audio",
 		FormField: "audio",
-		// These are what the sniffer actually returns, which is not always
-		// what the extension suggests: WAV comes back as audio/wave and OGG
-		// as application/ogg.
-		AllowedMimeTypes: map[string]bool{
-			"audio/mpeg":      true,
-			"audio/wave":      true,
-			"audio/wav":       true,
-			"audio/x-wav":     true,
-			"audio/aiff":      true,
-			"application/ogg": true,
-			"audio/ogg":       true,
-			"audio/flac":      true,
-			"audio/midi":      true,
-			// m4a and some aac files sniff as generic MP4 rather than an
-			// audio type.
-			"video/mp4": true,
-			"audio/mp4": true,
-		},
+		Extensions: extensions(
+			".mp3", ".wav", ".ogg", ".oga", ".flac", ".m4a", ".aac", ".aiff", ".mid", ".midi",
+		),
+	},
+	"video": {
+		Name:      "video",
+		FormField: "video",
+		Extensions: extensions(
+			".mp4", ".webm", ".mkv", ".mov", ".m4v", ".avi",
+		),
 	},
 }
 

@@ -18,9 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SidebarGroupAction } from "@/components/ui/sidebar";
-import useUploadFileMutation from "../hooks/use-upload-file-mutation";
-import { AxiosError } from "axios";
-import { IErrorResponse } from "@/types/response";
+import { uploadAll } from "../hooks/use-upload-file-mutation";
 import toast from "react-hot-toast";
 import { constant } from "@/lib/constant";
 
@@ -43,48 +41,66 @@ const UploadModal = ({
     placement === "header" && type ? type : "documents"
   );
 
-  const uploadFileMutation = useUploadFileMutation();
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
 
   const handleReset = useCallback(() => {
     setFiles([]);
     setFolder(currentFolder);
+    setProgress({ done: 0, total: 0 });
 
     // Reset tab to initial value based on placement and type
     const initialTab = placement === "header" && type ? type : "documents";
     setTab(initialTab);
     setOpen(false);
-    uploadFileMutation.reset();
-  }, [uploadFileMutation, placement, type, currentFolder]);
+  }, [placement, type, currentFolder]);
 
   const queryClient = useQueryClient();
 
   const { mutate: uploadFileMutate, isPending: isUploadPending } = useMutation({
     mutationFn: async () => {
-      return Promise.all(
-        files.map((file) => {
-          const sanitizedFile = sanitizeFileName(file);
-          return uploadFileMutation.mutateAsync({
-            file: sanitizedFile,
-            type: tab,
-            folder: sanitizeFolder(folder),
-          });
-        })
+      setProgress({ done: 0, total: files.length });
+
+      return uploadAll(
+        files.map(sanitizeFileName),
+        tab,
+        sanitizeFolder(folder),
+        (done, total) => setProgress({ done, total })
       );
     },
-    onSuccess: async () => {
-      toast.success("Successfully uploaded file!");
+    onSuccess: async (outcomes) => {
+      const failed = outcomes.filter((outcome) => !outcome.ok);
+      const uploaded = outcomes.length - failed.length;
+
+      if (uploaded > 0) {
+        toast.success(
+          uploaded === 1
+            ? "Successfully uploaded file!"
+            : `Successfully uploaded ${uploaded} files!`
+        );
+      }
+
+      // Report the failures individually rather than losing the whole batch to
+      // the first one: with 100 files, which ones failed is the useful part.
+      failed.slice(0, 3).forEach((outcome) => {
+        toast.error(`${outcome.file.name}: ${outcome.error}`);
+      });
+      if (failed.length > 3) {
+        toast.error(`${failed.length - 3} more files failed to upload.`);
+      }
+
       Promise.all([
         queryClient.invalidateQueries({ queryKey: constant.queryKeys.all }),
         queryClient.invalidateQueries({
           queryKey: [constant.queryKeys.dashboard],
         }),
       ]);
-      handleReset();
-    },
-    onError: (error) => {
-      const err = error as AxiosError<IErrorResponse>;
-      const message = err.response?.data?.error || "Upload failed";
-      toast.error(message);
+
+      if (failed.length === 0) {
+        handleReset();
+      } else {
+        setFiles(failed.map((outcome) => outcome.file));
+        setProgress({ done: 0, total: 0 });
+      }
     },
   });
 
@@ -157,7 +173,9 @@ const UploadModal = ({
             {isUploadPending ? (
               <>
                 <Loader2Icon className="animate-spin" />
-                Please wait
+                {progress.total > 0
+                  ? `Uploading ${progress.done}/${progress.total}`
+                  : "Please wait"}
               </>
             ) : (
               "Upload"

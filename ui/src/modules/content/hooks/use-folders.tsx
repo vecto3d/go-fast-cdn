@@ -9,12 +9,20 @@ import toast from "react-hot-toast";
 const errorMessage = (error: Error, fallback: string) =>
   (error as AxiosError<IErrorResponse>).response?.data?.error || fallback;
 
+/** A folder as the API returns it: `path` is what URLs use, `name` is shown. */
+export type TFolder = {
+  path: string;
+  name: string;
+};
+
 /** Every folder that exists on disk, including ones with no files yet. */
 export const useFoldersQuery = (type: TFileType) =>
   useQuery({
     queryKey: constant.queryKeys.folders(type),
     queryFn: async () => {
-      const res = await cdnApiClient.get<string[]>(`/folder/${apiSegment(type)}`);
+      const res = await cdnApiClient.get<TFolder[]>(
+        `/folder/${apiSegment(type)}`
+      );
       return res.data;
     },
   });
@@ -23,11 +31,18 @@ export const useCreateFolderMutation = (type: TFileType) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (folder: string) => {
+    mutationFn: async ({
+      folder,
+      displayName,
+    }: {
+      folder: string;
+      displayName: string;
+    }) => {
       const res = await cdnApiClient.post(`/folder/${apiSegment(type)}`, {
         folder,
+        display_name: displayName,
       });
-      return res.data;
+      return res.data as { folder: string; name: string };
     },
     onSuccess: () => {
       toast.success("Folder created!");

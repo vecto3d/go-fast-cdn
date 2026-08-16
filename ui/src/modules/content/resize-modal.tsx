@@ -41,7 +41,12 @@ const ResizeModal: React.FC<ResizeModalProps> = ({
     height: 0,
   });
   const queryClient = useQueryClient();
-  const resizeModal = useGetFileDataQuery({ filename, folder, type: "images" });
+  const resizeModal = useGetFileDataQuery({
+    filename,
+    folder,
+    type: "images",
+    enabled: isOpen,
+  });
   const fileMetadata = resizeModal.data;
 
   const resizeFileMutation = useResizeImageMutation({

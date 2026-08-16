@@ -10,14 +10,22 @@ type TFileDataModalProps = {
   filename: string;
   folder?: string;
   type: TFileType;
+  /** The parent dialog's open state; metadata is fetched only while open. */
+  isOpen?: boolean;
 };
 
 const FileDataModal: React.FC<TFileDataModalProps> = ({
   filename,
   folder = "",
   type,
+  isOpen = false,
 }) => {
-  const fileData = useGetFileDataQuery({ filename, folder, type });
+  const fileData = useGetFileDataQuery({
+    filename,
+    folder,
+    type,
+    enabled: isOpen,
+  });
 
   if (!fileData.data)
     return (
@@ -25,7 +33,7 @@ const FileDataModal: React.FC<TFileDataModalProps> = ({
         <DialogHeader>
           <DialogTitle>{filename}</DialogTitle>
         </DialogHeader>
-        Error fetching file data.
+        {fileData.isLoading ? "Loading file data..." : "Error fetching file data."}
       </DialogContent>
     );
   return (

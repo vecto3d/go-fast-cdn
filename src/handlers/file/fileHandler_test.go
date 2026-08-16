@@ -69,6 +69,8 @@ func uploadRequest(t *testing.T, fileType, formField, fileName, folder string, c
 func TestHandleUpload(t *testing.T) {
 	jpegBytes := encodeJPEG(t, 64, 48)
 	textBytes := bytes.Repeat([]byte("plain text file. "), 40)
+	// A RIFF container that is a WAV, to prove "RIFF" alone is not taken as WebP.
+	wavBytes := append([]byte{0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45}, bytes.Repeat([]byte{0}, 600)...)
 
 	tests := []struct {
 		name       string
@@ -83,8 +85,12 @@ func TestHandleUpload(t *testing.T) {
 		{"image in folder", "images", "image", "photo.jpg", "holiday/2026", jpegBytes, http.StatusOK},
 		{"doc", "docs", "doc", "notes.txt", "reports", textBytes, http.StatusOK},
 		{"audio", "audio", "audio", "song.flac", "tracks", append([]byte("fLaC"), bytes.Repeat([]byte{7}, 600)...), http.StatusOK},
+		{"video", "video", "video", "clip.webm", "clips", append([]byte{0x1A, 0x45, 0xDF, 0xA3}, bytes.Repeat([]byte{0}, 600)...), http.StatusOK},
+		{"svg counts as an image", "images", "image", "logo.svg", "", []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"></svg>`), http.StatusOK},
 		{"unknown type", "videos", "video", "clip.mp4", "", jpegBytes, http.StatusBadRequest},
-		{"wrong content for type", "audio", "audio", "photo.jpg", "", jpegBytes, http.StatusBadRequest},
+		{"extension not allowed for type", "audio", "audio", "photo.jpg", "", jpegBytes, http.StatusBadRequest},
+		{"content contradicts extension", "images", "image", "photo.png", "", jpegBytes, http.StatusBadRequest},
+		{"wav renamed as webp is caught", "images", "image", "fake.webp", "", wavBytes, http.StatusBadRequest},
 		{"missing form field", "images", "wrongfield", "photo.jpg", "", jpegBytes, http.StatusBadRequest},
 		{"filename with two periods", "images", "image", "photo.small.jpg", "", jpegBytes, http.StatusBadRequest},
 	}
@@ -171,7 +177,7 @@ func TestFolderLifecycle(t *testing.T) {
 	create := func(folder string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		payload, _ := json.Marshal(map[string]string{"folder": folder})
+		payload, _ := json.Marshal(map[string]string{"folder": folder, "display_name": "Display " + folder})
 		c.Request = httptest.NewRequest(http.MethodPost, "/api/cdn/folder/images", bytes.NewReader(payload))
 		c.Request.Header.Set("Content-Type", "application/json")
 		c.Params = gin.Params{{Key: "type", Value: "images"}}
@@ -194,9 +200,43 @@ func TestFolderLifecycle(t *testing.T) {
 	c.Params = gin.Params{{Key: "type", Value: "images"}}
 	handler.HandleFolderList(c)
 
-	folders := []string{}
+	folders := []Folder{}
 	require.NoError(t, json.NewDecoder(listed.Body).Decode(&folders))
-	require.Equal(t, []string{"escaped", "logos", "logos/dark"}, folders)
+	paths := []string{}
+	for _, folder := range folders {
+		paths = append(paths, folder.Path)
+	}
+	require.Equal(t, []string{"escaped", "logos", "logos/dark"}, paths)
+
+	// The typed name is kept for display; the path stays the slug.
+	byPath := map[string]string{}
+	for _, folder := range folders {
+		byPath[folder.Path] = folder.Name
+	}
+	require.Equal(t, "Display logos/dark", byPath["logos/dark"])
+	// An intermediate folder nobody named falls back to its own segment.
+	require.Equal(t, "logos", byPath["logos"])
+}
+
+func TestFolderCreateSlugifiesTheName(t *testing.T) {
+	handler := newTestHandler(t)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	payload, _ := json.Marshal(map[string]string{"folder": "My Cats 2026!", "display_name": "My Cats 2026!"})
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/cdn/folder/images", bytes.NewReader(payload))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Params = gin.Params{{Key: "type", Value: "images"}}
+
+	handler.HandleFolderCreate(c)
+
+	require.Equal(t, http.StatusOK, w.Result().StatusCode, w.Body.String())
+
+	result := map[string]any{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&result))
+	require.Equal(t, "my-cats-2026", result["folder"])
+	require.Equal(t, "My Cats 2026!", result["name"])
+	require.DirExists(t, filepath.Join(util.ExPath, "uploads", "images", "my-cats-2026"))
 }
 
 func TestHandleFolderDeleteIsRecursive(t *testing.T) {

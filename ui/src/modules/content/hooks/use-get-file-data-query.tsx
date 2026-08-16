@@ -8,14 +8,18 @@ type FileDataParams = {
   filename: string;
   folder?: string;
   type: TFileType;
+  /** Off by default: metadata is only worth fetching once something shows it. */
+  enabled?: boolean;
 };
 
 const useGetFileDataQuery = ({
   filename,
   folder = "",
   type,
+  enabled = true,
 }: FileDataParams) => {
   return useQuery({
+    enabled,
     queryKey: constant.queryKeys.image(
       folder ? `${folder}/${filename}` : filename
     ),

@@ -35,23 +35,32 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 
 	fileBuffer := make([]byte, 512)
 
-	_, err = file.Read(fileBuffer)
+	read, err := file.Read(fileBuffer)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to read file: %s", err.Error())
 		return
 	}
 
-	detectedType := util.DetectContentType(fileBuffer)
-	if !fileType.AllowedMimeTypes[detectedType] {
-		c.String(http.StatusBadRequest, "Invalid file type: %s", detectedType)
-		return
-	}
-
+	// The checksum keeps hashing the whole padded buffer, so that the values
+	// stored for files uploaded before this check still match.
 	fileHashBuffer := md5.Sum(fileBuffer)
+	sniffed := fileBuffer[:read]
 
 	filename := fileHeader.Filename
 	if newName != "" {
 		filename = newName + filepath.Ext(fileHeader.Filename)
+	}
+
+	// The extension has to be one this type accepts, and the content has to
+	// back it up wherever the format carries a recognisable marker.
+	extension := util.Extension(filename)
+	if !fileType.Extensions[extension] {
+		c.String(http.StatusBadRequest, "Invalid file type for %s: %s", fileType.Name, extension)
+		return
+	}
+	if !util.ContentMatchesExtension(filename, sniffed) {
+		c.String(http.StatusBadRequest, "File content does not match its %s extension", extension)
+		return
 	}
 
 	filteredFilename, err := util.FilterFilename(filename)

@@ -1,15 +1,58 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kevinanielsen/go-fast-cdn/src/util"
 )
+
+// folderMetaFile holds a folder's display name. It lives inside the folder so
+// it travels with the directory and needs no table of its own; the leading dot
+// keeps it out of the way.
+const folderMetaFile = ".folder.json"
+
+type folderMeta struct {
+	DisplayName string `json:"display_name"`
+}
+
+// Folder is a folder as the UI sees it: the path is what appears in URLs and on
+// disk, the name is what gets displayed.
+type Folder struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+}
+
+func metaPath(fileType, folder string) string {
+	return filepath.Join(util.ExPath, "uploads", fileType, folder, folderMetaFile)
+}
+
+// displayName reads a folder's stored name, falling back to its last path
+// segment for folders created before display names existed.
+func displayName(fileType, folder string) string {
+	fallback := folder
+	if index := strings.LastIndex(folder, "/"); index >= 0 {
+		fallback = folder[index+1:]
+	}
+
+	content, err := os.ReadFile(metaPath(fileType, folder))
+	if err != nil {
+		return fallback
+	}
+
+	meta := folderMeta{}
+	if err := json.Unmarshal(content, &meta); err != nil || meta.DisplayName == "" {
+		return fallback
+	}
+
+	return meta.DisplayName
+}
 
 // HandleFolderList returns every folder that exists on disk for this file type,
 // including ones with no files in them yet.
@@ -20,7 +63,7 @@ func (h *FileHandler) HandleFolderList(c *gin.Context) {
 	}
 
 	root := filepath.Join(util.ExPath, "uploads", fileType.Name)
-	folders := []string{}
+	folders := []Folder{}
 
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -38,7 +81,8 @@ func (h *FileHandler) HandleFolderList(c *gin.Context) {
 		if err != nil {
 			return err
 		}
-		folders = append(folders, filepath.ToSlash(relative))
+		slashed := filepath.ToSlash(relative)
+		folders = append(folders, Folder{Path: slashed, Name: displayName(fileType.Name, slashed)})
 
 		return nil
 	})
@@ -49,12 +93,13 @@ func (h *FileHandler) HandleFolderList(c *gin.Context) {
 		return
 	}
 
-	sort.Strings(folders)
+	sort.Slice(folders, func(i, j int) bool { return folders[i].Path < folders[j].Path })
 
 	c.JSON(http.StatusOK, folders)
 }
 
-// HandleFolderCreate creates an empty folder for this file type.
+// HandleFolderCreate creates an empty folder for this file type. The path is
+// slugified so it stays URL-safe; the name the user typed is kept for display.
 func (h *FileHandler) HandleFolderCreate(c *gin.Context) {
 	fileType, _, ok := h.resolve(c)
 	if !ok {
@@ -62,14 +107,15 @@ func (h *FileHandler) HandleFolderCreate(c *gin.Context) {
 	}
 
 	body := struct {
-		Folder string `json:"folder"`
+		Folder      string `json:"folder"`
+		DisplayName string `json:"display_name"`
 	}{}
 	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	folder := util.SanitizeFolder(body.Folder)
+	folder := util.SanitizeFolder(util.Slugify(body.Folder))
 	if folder == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Folder name is required",
@@ -92,9 +138,18 @@ func (h *FileHandler) HandleFolderCreate(c *gin.Context) {
 		return
 	}
 
+	name := strings.TrimSpace(body.DisplayName)
+	if name != "" && name != folder {
+		meta, _ := json.Marshal(folderMeta{DisplayName: name})
+		// A folder without its metadata still works, it just displays its
+		// path, so a write failure here is not worth failing the request over.
+		_ = os.WriteFile(metaPath(fileType.Name, folder), meta, 0o644)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Folder created successfully",
 		"folder":  folder,
+		"name":    displayName(fileType.Name, folder),
 	})
 }
 

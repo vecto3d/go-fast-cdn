@@ -24,6 +24,33 @@ func SanitizeFolder(folder string) string {
 	return strings.Join(segments, "/")
 }
 
+// Slugify turns a display name into a URL-safe folder name: lowercase, with
+// runs of anything that is not a letter, digit, dot or underscore collapsed
+// into single dashes. Path separators are preserved so a nested path can be
+// slugified in one call.
+func Slugify(name string) string {
+	var builder strings.Builder
+	lastDash := true // suppresses a leading dash
+
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '_':
+			builder.WriteRune(r)
+			lastDash = false
+		case r == '/':
+			builder.WriteRune('/')
+			lastDash = true
+		default:
+			if !lastDash {
+				builder.WriteRune('-')
+				lastDash = true
+			}
+		}
+	}
+
+	return strings.Trim(builder.String(), "-")
+}
+
 // URLPath joins path parts into a URL path, escaping each segment so that
 // names containing spaces or other reserved characters still produce a URL
 // that resolves. Empty parts are skipped, so a root-level file (folder "")

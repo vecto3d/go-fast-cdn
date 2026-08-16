@@ -9,6 +9,8 @@ export type TContentCardProps = {
   updatedAt: string;
   disabled?: boolean;
   isSelected?: boolean;
-  onSelect?: (fileName: string) => void;
+  /** Identifies this card to the drag-select box; defaults to the file name. */
+  selectionKey?: string;
+  onSelect?: (fileName: string, modifiers?: { shiftKey?: boolean }) => void;
   isSelecting?: boolean;
 };

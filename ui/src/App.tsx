@@ -1,4 +1,6 @@
 import { Route } from "wouter";
+import { Fragment } from "react";
+import { FILE_TYPE_NAMES, FILE_TYPES } from "./lib/file-types";
 import { Toaster } from "react-hot-toast";
 import { SidebarProvider } from "./components/ui/sidebar";
 import SidebarNav from "./components/layouts/sidebar-nav";
@@ -31,9 +33,19 @@ function AppContent() {
             <SidebarNav />
             <main className="m-4 h-auto w-full">
               <Route path="/">{<DashboardPage />}</Route>
-              <Route path="/images">{<Files type="images" />}</Route>
-              <Route path="/documents">{<Files type="documents" />}</Route>
-              <Route path="/audio">{<Files type="audio" />}</Route>
+              {/* Two routes per type: the bare page, and the same page with a
+                  folder path, so folders are linkable and the back button
+                  walks back up the tree instead of leaving the page. */}
+              {FILE_TYPE_NAMES.map((type) => (
+                <Fragment key={type}>
+                  <Route path={FILE_TYPES[type].route}>
+                    {<Files type={type} />}
+                  </Route>
+                  <Route path={`${FILE_TYPES[type].route}/:rest*`}>
+                    {<Files type={type} />}
+                  </Route>
+                </Fragment>
+              ))}
               <Route path="/settings">{<UserSettings />}</Route>
               <Route path="/admin/user-management">
                 <AdminRoute>
