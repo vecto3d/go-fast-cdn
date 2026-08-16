@@ -5,5 +5,7 @@ export type TFile = {
   DeletedAt: string | null;
   file_name: string;
   folder: string;
+  /** Bytes on disk, read while listing. */
+  size?: number;
   checksum: string;
 };
