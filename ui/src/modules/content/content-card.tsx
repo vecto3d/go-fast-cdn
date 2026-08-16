@@ -51,7 +51,10 @@ const ContentCard: React.FC<TContentCardProps> = ({
         height={150}
         loading="lazy"
         decoding="async"
-        className="object-cover max-h-[150px] max-w-[224px]"
+        // contain, not cover: cover fills the box by cutting the edges off,
+        // which hid part of every image that is not 224x150. The box keeps its
+        // size so the grid stays even; the image letterboxes inside it.
+        className="h-[150px] w-[224px] object-contain"
       />
     ) : type === "audio" ? (
       <Music size="96" />
