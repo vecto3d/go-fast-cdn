@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -41,10 +42,23 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 		return
 	}
 
-	// The checksum keeps hashing the whole padded buffer, so that the values
-	// stored for files uploaded before this check still match.
-	fileHashBuffer := md5.Sum(fileBuffer)
 	sniffed := fileBuffer[:read]
+
+	// Hash the whole file, not just the sniffed prefix. Hashing 512 bytes meant
+	// any two files sharing a header — every icon in a set exported by the same
+	// tool, for instance — looked identical and the second was rejected as a
+	// duplicate it was not.
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to read file: %s", err.Error())
+		return
+	}
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to read file: %s", err.Error())
+		return
+	}
+	checksum := hasher.Sum(nil)
 
 	filename := fileHeader.Filename
 	if newName != "" {
@@ -69,9 +83,11 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 		return
 	}
 
-	if existing := repo.GetByCheckSum(fileHashBuffer[:]); len(existing.Checksum) > 0 {
+	// Scoped to the folder: the same asset genuinely belongs in more than one
+	// folder, and rejecting it there was never what "already exists" should mean.
+	if existing := repo.GetByCheckSum(folder, checksum); len(existing.Checksum) > 0 {
 		c.JSON(http.StatusConflict, gin.H{
-			"error": "File already exists",
+			"error": "File already exists in this folder: " + existing.FileName,
 		})
 		return
 	}
@@ -79,7 +95,7 @@ func (h *FileHandler) HandleUpload(c *gin.Context) {
 	savedFilename, err := repo.Add(models.FileRecord{
 		FileName: filteredFilename,
 		Folder:   folder,
-		Checksum: fileHashBuffer[:],
+		Checksum: checksum,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())

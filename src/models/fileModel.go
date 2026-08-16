@@ -77,7 +77,7 @@ var FileTypes = map[string]FileType{
 
 type FileRepository interface {
 	GetAll() []FileRecord
-	GetByCheckSum(checksum []byte) FileRecord
+	GetByCheckSum(folder string, checksum []byte) FileRecord
 	Add(file FileRecord) (string, error)
 	Delete(folder, fileName string) (string, bool)
 	Rename(folder, oldFileName, newFileName string) error

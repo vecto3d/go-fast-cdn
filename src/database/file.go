@@ -36,10 +36,10 @@ func (repo *fileRepo) GetAll() []models.FileRecord {
 	return entries
 }
 
-func (repo *fileRepo) GetByCheckSum(checksum []byte) models.FileRecord {
+func (repo *fileRepo) GetByCheckSum(folder string, checksum []byte) models.FileRecord {
 	var entry models.FileRecord
 
-	repo.query().Where("checksum = ?", checksum).First(&entry)
+	repo.query().Where("folder = ? AND checksum = ?", folder, checksum).First(&entry)
 
 	return entry
 }

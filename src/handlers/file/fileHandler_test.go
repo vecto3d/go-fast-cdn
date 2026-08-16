@@ -117,19 +117,56 @@ func TestHandleUpload(t *testing.T) {
 	}
 }
 
+// Files that share a header but differ later are different files. Hashing only
+// the sniffed prefix made every icon exported by the same tool look identical,
+// so a batch upload rejected most of itself as duplicates.
+func TestHandleUploadAcceptsFilesSharingAHeader(t *testing.T) {
+	handler := newTestHandler(t)
+
+	first := encodeJPEG(t, 64, 48)
+	second := append(append([]byte{}, first...), bytes.Repeat([]byte{0x42}, 64)...)
+	require.Equal(t, first[:512], second[:512], "the test needs two files with an identical prefix")
+
+	c, w := uploadRequest(t, "images", "image", "icon-a.jpg", "icons", first)
+	handler.HandleUpload(c)
+	require.Equal(t, http.StatusOK, w.Result().StatusCode, w.Body.String())
+
+	cc, ww := uploadRequest(t, "images", "image", "icon-b.jpg", "icons", second)
+	handler.HandleUpload(cc)
+	require.Equal(t, http.StatusOK, ww.Result().StatusCode, ww.Body.String())
+
+	require.Len(t, handler.Repo("images").GetAll(), 2)
+}
+
+// The same bytes in a different folder is a legitimate copy, not a duplicate.
+func TestHandleUploadAllowsSameFileInAnotherFolder(t *testing.T) {
+	handler := newTestHandler(t)
+	content := encodeJPEG(t, 64, 48)
+
+	c, w := uploadRequest(t, "images", "image", "logo.jpg", "brand/light", content)
+	handler.HandleUpload(c)
+	require.Equal(t, http.StatusOK, w.Result().StatusCode, w.Body.String())
+
+	cc, ww := uploadRequest(t, "images", "image", "logo.jpg", "brand/dark", content)
+	handler.HandleUpload(cc)
+	require.Equal(t, http.StatusOK, ww.Result().StatusCode, ww.Body.String())
+
+	require.Len(t, handler.Repo("images").GetAll(), 2)
+}
+
 func TestHandleUploadRejectsDuplicate(t *testing.T) {
 	handler := newTestHandler(t)
 	content := encodeJPEG(t, 64, 48)
 
-	c, first := uploadRequest(t, "images", "image", "photo.jpg", "", content)
+	c, first := uploadRequest(t, "images", "image", "photo.jpg", "gallery", content)
 	handler.HandleUpload(c)
 	require.Equal(t, http.StatusOK, first.Result().StatusCode)
 
-	cc, second := uploadRequest(t, "images", "image", "photo.jpg", "", content)
+	cc, second := uploadRequest(t, "images", "image", "photo-copy.jpg", "gallery", content)
 	handler.HandleUpload(cc)
 
 	require.Equal(t, http.StatusConflict, second.Result().StatusCode)
-	require.JSONEq(t, `{"error":"File already exists"}`, second.Body.String())
+	require.Contains(t, second.Body.String(), "already exists in this folder")
 }
 
 func TestHandleMetadata(t *testing.T) {
