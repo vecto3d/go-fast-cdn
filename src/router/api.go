@@ -105,6 +105,9 @@ func (s *Server) AddApiRoutes() {
 	{
 		adminRoutes.POST("/drop/database", dbHandlers.HandleDropDB)
 		adminRoutes.POST("/cache/purge", fileHandler.HandlePurgeCache)
+		// Index whatever is on disk. Bulk work is a directory copy plus one call
+		// here, rather than an HTTP upload per file.
+		adminRoutes.POST("/sync/:type", fileHandler.HandleSync)
 
 		adminUserHandler := authHandlers.NewAdminUserHandler(database.NewUserRepo(database.DB))
 		{
