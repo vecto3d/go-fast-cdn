@@ -108,6 +108,9 @@ func HandleImageResize(c *gin.Context) {
 		return
 	}
 
+	// Same URL, new bytes: drop the edge copy like an upload does.
+	util.PurgeURLs([]string{purgeURL(c, "images", util.SanitizeFolder(body.Folder), filename)})
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "File resized successfully",
 	})

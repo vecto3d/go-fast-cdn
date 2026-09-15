@@ -10,13 +10,14 @@ import "github.com/gin-gonic/gin"
 // executing, while leaving images, audio and video embedding untouched, and
 // nosniff keeps a browser from re-interpreting a file as something it is not.
 //
-// The cache window is a day rather than immutable, so replacing a file under
-// the same name corrects itself without a purge.
+// Cloudflare keeps a file for a day (s-maxage) and is purged whenever one
+// changes, but a purge can't reach browser caches, so browsers only keep it
+// for five minutes. Otherwise a replaced file stays stale for players for a day.
 func ServedFileHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("Cache-Control", "public, max-age=86400")
+		c.Header("Cache-Control", "public, max-age=300, s-maxage=86400")
 		c.Next()
 	}
 }
